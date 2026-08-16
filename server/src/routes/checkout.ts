@@ -271,7 +271,7 @@ export async function markOrderPaid(orderId: string, reference: string): Promise
       await trx('products')
         .where({ id: item.product_id })
         .update({
-          inventory: trx.raw('MAX(inventory - ?, 0)', [item.quantity]),
+          inventory: trx.raw('GREATEST(inventory - ?, 0)', [item.quantity]),
           units_sold: trx.raw('units_sold + ?', [item.quantity]),
           updated_at: nowIso,
         });
