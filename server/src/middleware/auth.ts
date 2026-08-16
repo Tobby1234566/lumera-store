@@ -44,15 +44,16 @@ export function issueAdminToken(claims: AdminClaims): string {
 }
 
 export function setSessionCookie(res: Response, token: string): void {
+  const crossOrigin = config.appUrl.startsWith('https://');
+
   res.cookie(config.auth.cookieName, token, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: config.isProduction, // HTTPS-only in production
+    sameSite: crossOrigin ? 'none' : 'lax',
+    secure: crossOrigin,
     maxAge: config.auth.sessionTtlSeconds * 1000,
     path: '/',
   });
 }
-
 export function clearSessionCookie(res: Response): void {
   res.clearCookie(config.auth.cookieName, { path: '/' });
 }
