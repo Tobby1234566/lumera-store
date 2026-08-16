@@ -1,0 +1,29 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment — never commit real secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite database
+server/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Logs & OS noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Local QA harness (Playwright screenshots & scratch scripts)
+.qa/*.png

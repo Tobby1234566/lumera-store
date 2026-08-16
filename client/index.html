@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#FBF9F6" />
+
+    <title>LUMÉRA — Simple skincare. Beautifully made.</title>
+    <meta
+      name="description"
+      content="LUMÉRA is simple, considered skincare designed to help you build a routine that feels as good as it looks. Cleansers, serums, moisturisers and SPF."
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LUMÉRA" />
+    <meta property="og:title" content="LUMÉRA — Simple skincare. Beautifully made." />
+    <meta
+      property="og:description"
+      content="Simple skincare designed to help you build a routine that feels as good as it looks."
+    />
+    <meta property="og:image" content="/images/hero.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="/" />
+
+    <!--
+      Brand fonts are self-hosted (client/public/fonts/): one variable font file
+      per family, no third-party CDN request, no data sent to a font host.
+      Preloaded so text renders without a flash of fallback typography.
+    -->
+    <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/cormorant-garamond.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

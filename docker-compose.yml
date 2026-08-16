@@ -1,0 +1,59 @@
+# Local production-like stack: the app plus PostgreSQL.
+#
+#   docker compose up --build
+#   docker compose exec app node dist/db/migrate.js
+#   docker compose exec app node dist/db/seed.js
+#
+# Storefront: http://localhost:4000
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lumera
+      POSTGRES_PASSWORD: lumera_local_password
+      POSTGRES_DB: lumera
+    volumes:
+      - lumera_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lumera -d lumera']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - '5432:5432'
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      APP_URL: http://localhost:4000
+
+      DB_CLIENT: pg
+      DATABASE_URL: postgresql://lumera:lumera_local_password@db:5432/lumera
+      DATABASE_SSL: 'false'
+
+      # Local-only values. Generate real secrets for any deployed environment:
+      #   openssl rand -base64 48
+      JWT_SECRET: local-compose-secret-not-for-production-use
+
+      # The server refuses to start in production with PAYMENT_PROVIDER=mock,
+      # so this stack uses the stripe driver with placeholder credentials.
+      # Replace with real keys (via a .env file) to process live payments.
+      PAYMENT_PROVIDER: stripe
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+
+      EMAIL_DRIVER: console
+      CURRENCY: USD
+    ports:
+      - '4000:4000'
+
+volumes:
+  lumera_pgdata:
