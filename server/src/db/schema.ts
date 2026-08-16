@@ -220,6 +220,8 @@ export async function createSchema(db: Knex): Promise<void> {
   }
 }
 
+
+
 export async function dropSchema(db: Knex): Promise<void> {
   const tables = [
     'analytics_events',
