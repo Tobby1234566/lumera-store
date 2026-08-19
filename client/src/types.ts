@@ -134,3 +134,39 @@ export type StoreConfig = {
   freeShippingThresholdCents: number;
   payment: { provider: string; isMock: boolean };
 };
+
+export type Customer = {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  acceptsMarketing: boolean;
+  emailVerified: boolean;
+  createdAt: string;
+};
+
+export type CustomerAddress = {
+  id: string;
+  customer_id?: string;
+  label: string;
+  full_name: string;
+  phone: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string | null;
+  postal_code: string | null;
+  country: string;
+  is_default: boolean;
+};
+
+export type AccountOrder = {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  paymentStatus: string;
+  totalCents: number;
+  currency: string;
+  createdAt: string;
+  items: { name: string; slug: string; image: string | null; quantity: number; unitPriceCents: number; lineTotalCents: number }[];
+};

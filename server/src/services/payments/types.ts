@@ -100,6 +100,10 @@ export interface PaymentProvider {
   parseWebhook(rawBody: Buffer, signature: string | undefined): Promise<{
     reference: string;
     paid: boolean;
+    eventId?: string;
+    eventType?: string;
+    amountCents?: number;
+    currency?: string;
   } | null>;
 }
 

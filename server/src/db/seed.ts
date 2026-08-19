@@ -93,7 +93,7 @@ async function seedReviews() {
       rating: r.rating,
       title: r.title,
       body: r.body,
-      is_placeholder: false,
+      is_placeholder: true,
       is_published: true,
       is_verified_purchase: false,
       created_at: daysAgo(r.daysAgo),

@@ -1,4 +1,4 @@
-import type { Order, Product, Quote, Review, StoreConfig } from '../types';
+import type { AccountOrder, Customer, CustomerAddress, Order, Product, Quote, Review, StoreConfig } from '../types';
 
 /**
  * API client.
@@ -132,7 +132,7 @@ export const api = {
   }) =>
     post<{
       order: Order;
-      payment: { provider: string; status: string; redirectUrl: string | null; clientSecret: string | null; isMock: boolean };
+      payment: { provider: string; status: string; reference: string; redirectUrl: string | null; clientSecret: string | null; isMock: boolean };
     }>('/api/checkout/order', payload),
 
   order: (orderNumber: string, email?: string) =>
@@ -148,6 +148,27 @@ export const api = {
 
   track: (name: string, payload: Record<string, string | number | boolean> = {}) =>
     post<void>('/api/analytics', { name, payload }).catch(() => undefined),
+
+  paymentVerify: (reference: string) => post<{ order: Order; paid: boolean }>('/api/checkout/payment/verify', { reference }),
+  paymentFail: (reference: string, reason = 'Payment was not completed.') => post<{ ok: boolean }>('/api/checkout/payment/fail', { reference, reason }),
+
+  customer: {
+    me: () => request<{ customer: Customer; addresses: CustomerAddress[] }>('/api/auth/me'),
+    register: (payload: { email: string; fullName: string; password: string; acceptsMarketing?: boolean }) =>
+      post<{ message: string; email: string }>('/api/auth/register', payload),
+    login: (email: string, password: string) => post<{ customer: Customer }>('/api/auth/login', { email, password }),
+    logout: () => post<{ success: boolean }>('/api/auth/logout', {}),
+    verifyEmail: (token: string) => post<{ message: string; email: string }>('/api/auth/verify-email', { token }),
+    resendVerification: (email: string) => post<{ message: string }>('/api/auth/resend-verification', { email }),
+    forgotPassword: (email: string) => post<{ message: string }>('/api/auth/forgot-password', { email }),
+    resetPassword: (token: string, password: string) => post<{ message: string }>('/api/auth/reset-password', { token, password }),
+    update: (payload: { fullName?: string; phone?: string; acceptsMarketing?: boolean }) =>
+      request<{ customer: Customer }>('/api/auth/me', { method: 'PATCH', body: JSON.stringify(payload) }),
+    orders: () => request<{ orders: AccountOrder[] }>('/api/auth/me/orders'),
+    addresses: () => request<{ addresses: CustomerAddress[] }>('/api/auth/me/addresses'),
+    addAddress: (payload: Record<string, unknown>) => post<{ address: CustomerAddress }>('/api/auth/me/addresses', payload),
+    deleteAddress: (id: string) => request<void>(`/api/auth/me/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
 
   admin: (() => {
     if (!ENABLE_DEV_MOCKS) {

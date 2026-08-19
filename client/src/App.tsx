@@ -12,6 +12,8 @@ import { ProductDetail } from './pages/ProductDetail';
 import { CartPage } from './pages/Cart';
 import { Checkout } from './pages/Checkout';
 import { OrderConfirmation } from './pages/OrderConfirmation';
+import { Account } from './pages/Account';
+import { VerifyEmail } from './pages/VerifyEmail';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { FAQ } from './pages/FAQ';
@@ -73,6 +75,8 @@ const STOREFRONT_ROUTES: [string, React.ReactNode][] = [
   ['/cart', <CartPage />],
   ['/checkout', <Checkout />],
   ['/order/:orderNumber', <OrderConfirmation />],
+  ['/account', <Account />],
+  ['/verify-email', <VerifyEmail />],
   ['/about', <About />],
   ['/contact', <Contact />],
   ['/faq', <FAQ />],

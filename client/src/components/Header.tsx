@@ -102,6 +102,7 @@ export function Header() {
           </Link>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            <Link to="/account" aria-label="Your account" className="hidden h-11 items-center px-2 text-[11px] uppercase tracking-wide text-ink-soft transition-colors hover:text-ink sm:flex">Account</Link>
             <button
               type="button"
               onClick={() => setSearchOpen((o) => !o)}
@@ -205,6 +206,8 @@ export function Header() {
                 </li>
               ))}
             </ul>
+
+            <Link to="/account" className="mt-8 block border-y border-sand-200 py-4 text-sm font-medium text-ink" onClick={() => setMenuOpen(false)}>Your account</Link>
 
             <p className="eyebrow mt-8 mb-3">Shop by category</p>
             <ul className="space-y-0.5">

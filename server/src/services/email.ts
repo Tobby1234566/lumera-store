@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer';
 import { config } from '../config.js';
 
 /**
@@ -56,24 +57,24 @@ async function consoleDriver(message: EmailMessage): Promise<void> {
   );
 }
 
-async function smtpDriver(_message: EmailMessage): Promise<void> {
-  // TODO(email): implement with nodemailer, e.g.
-  //
-  //   const transport = nodemailer.createTransport({
-  //     host: config.email.smtpHost,
-  //     port: config.email.smtpPort,
-  //     secure: config.email.smtpPort === 465,
-  //     auth: { user: config.email.smtpUser, pass: config.email.smtpPassword },
-  //   });
-  //   await transport.sendMail({
-  //     from: config.email.from,
-  //     to: _message.to,
-  //     subject: _message.subject,
-  //     text: _message.text,
-  //   });
-  throw new Error(
-    'EMAIL_DRIVER=smtp but the SMTP driver is not implemented yet. Complete server/src/services/email.ts or use EMAIL_DRIVER=console.',
-  );
+let smtpTransport: nodemailer.Transporter | null = null;
+
+async function smtpDriver(message: EmailMessage): Promise<void> {
+  if (!config.email.smtpHost || !config.email.smtpUser || !config.email.smtpPassword) {
+    throw new Error('EMAIL_DRIVER=smtp requires SMTP_HOST, SMTP_USER, and SMTP_PASSWORD.');
+  }
+  smtpTransport ??= nodemailer.createTransport({
+    host: config.email.smtpHost,
+    port: config.email.smtpPort,
+    secure: config.email.smtpPort === 465,
+    auth: { user: config.email.smtpUser, pass: config.email.smtpPassword },
+  });
+  await smtpTransport.sendMail({
+    from: config.email.from,
+    to: message.to,
+    subject: message.subject,
+    text: message.text,
+  });
 }
 
 export async function sendEmail(message: EmailMessage): Promise<void> {

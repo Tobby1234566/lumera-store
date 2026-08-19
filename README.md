@@ -29,9 +29,11 @@ Built with standard, portable technologies. There are **no platform-specific dep
 
 **Storefront** — Home, Shop (filter/sort/search), Product detail, Cart, Checkout, Order confirmation, About, Contact, FAQ, and four policy pages.
 
-**Commerce** — Persistent cart, server-authoritative pricing, discount codes, inventory tracking, full order lifecycle, and a swappable payment provider layer.
+**Commerce** — Persistent cart, server-authoritative pricing, discount codes, reserved inventory tracking, full order lifecycle, idempotent payment records, and a swappable payment provider layer.
 
 **Admin dashboard** (`/admin`) — Sales analytics, order management with status transitions, product CRUD, inventory, customers, discount codes and review moderation.
+
+**Accounts** — Customer registration, email verification, password login, secure HTTP-only sessions, password reset, profile editing, saved addresses, and authenticated order history.
 
 **Production-ready foundations** — SEO metadata and structured data, dynamic sitemap, security headers, rate limiting, input validation and sanitisation, self-hosted fonts, code splitting, and lazy-loaded imagery.
 
@@ -41,8 +43,8 @@ This project deliberately does **not** fake functionality. Where a real external
 
 | Area | Development state | Where to connect the real thing |
 | --- | --- | --- |
-| Payments | `mock` driver — **no card data collected, no money moves**. Server refuses to boot in production with it. | `server/src/services/payments/stripe.ts` |
-| Email | `console` driver — messages are printed to the server log. | `server/src/services/email.ts` |
+| Payments | `mock` driver is development-only. Stripe PaymentIntents and Flutterwave Standard are implemented behind signed webhook and server-verification flows. | `server/src/services/payments/stripe.ts`, `flutterwave.ts` |
+| Email | `console` driver is development-safe; SMTP delivery is available with Nodemailer and environment credentials. | `server/src/services/email.ts` |
 | Reviews | 13 seeded reviews flagged `is_placeholder`, labelled "Sample" in the UI and removable in one click. | Admin → Reviews |
 | Orders | 8 seeded fixture orders, plus any mock-paid orders, marked "simulated" in the admin. | `npm run db:reset` |
 | Analytics | First-party event store, no PII. | `client/src/lib/analytics.ts` |
@@ -203,9 +205,10 @@ Copy `.env.example` to `.env` and edit. **Never commit `.env`** (it is git-ignor
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `PAYMENT_PROVIDER` | `mock` | `mock` or `stripe`. **Production refuses to start on `mock`.** |
-| `CURRENCY` | `USD` | ISO 4217 code |
+| `PAYMENT_PROVIDER` | `mock` | `mock`, `stripe`, or `flutterwave`. **Production refuses to start on `mock`.** |
+| `CURRENCY` | `USD` | ISO 4217 code used for server-side totals |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | — | Required when `PAYMENT_PROVIDER=stripe` |
+| `FLW_SECRET_KEY` / `FLW_SECRET_HASH` | — | Required when `PAYMENT_PROVIDER=flutterwave` |
 
 ### Store, email, client
 
@@ -217,6 +220,7 @@ Copy `.env.example` to `.env` and edit. **Never commit `.env`** (it is git-ignor
 | `EMAIL_DRIVER` | `console` | `console` logs; `smtp` sends |
 | `EMAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | — | SMTP credentials |
 | `VITE_API_URL` | — | Only if the API is on a different domain |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | — | Required in the client build when `PAYMENT_PROVIDER=stripe`; publishable key only |
 | `VITE_ANALYTICS_ID` | — | For a third-party analytics provider |
 
 > ⚠️ **Anything prefixed `VITE_` is compiled into the public browser bundle.** Never put a secret there.
@@ -351,9 +355,11 @@ Every provider implements the `PaymentProvider` interface in `server/src/service
 npm --workspace server install stripe
 ```
 
-Complete the marked `TODO`s in `server/src/services/payments/stripe.ts` (`createIntent`, `verify`, `parseWebhook`), then set `PAYMENT_PROVIDER=stripe` and point a webhook at `POST /api/payments/webhook`. That route already receives a **raw body** so signature verification works.
+Stripe is implemented with PaymentIntents, server-side retrieval, and signed `payment_intent.*` webhook handling. Set `PAYMENT_PROVIDER=stripe`, provide `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the client-only `VITE_STRIPE_PUBLISHABLE_KEY`, then point Stripe at `POST /api/payments/webhook`.
 
-To add Paystack, Flutterwave or another processor: create a new driver implementing the same interface, register it in `payments/index.ts`, and set `PAYMENT_PROVIDER` accordingly. **No route, controller or database code changes.**
+Flutterwave Standard is implemented with hosted checkout initialization, `verify_by_reference`, HMAC-signed webhook verification, and redirect return verification. Set `PAYMENT_PROVIDER=flutterwave`, `FLW_SECRET_KEY`, and the dashboard webhook secret hash, then point Flutterwave at `POST /api/payments/webhook`.
+
+Every provider is still checked against the expected order amount and currency before settlement. **No route stores raw card data.**
 
 > **Card data never touches this server.** Only the provider's reference ID is stored.
 
@@ -437,7 +443,7 @@ Server-authoritative pricing (client totals are never trusted) · Zod validation
 
 ## Testing
 
-An end-to-end Playwright suite covering **66 assertions** lives in `.qa/e2e.mjs`:
+The project includes a Playwright suite and local API smoke coverage. The Playwright suite lives in `.qa/e2e.mjs`; run the backend and client first, then execute it:
 
 ```bash
 npx playwright install chromium

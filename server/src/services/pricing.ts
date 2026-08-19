@@ -84,8 +84,9 @@ export async function priceCart(
       : await query.clone().where({ slug: line.slug }).first();
 
     if (!product) throw badRequest(`A product in your cart is no longer available.`);
-    if (Number(product.inventory) < quantity) {
-      throw badRequest(`Only ${product.inventory} of ${product.name} remaining.`);
+    const availableInventory = Math.max(0, Number(product.inventory) - Number(product.reserved_inventory ?? 0));
+    if (availableInventory < quantity) {
+      throw badRequest(`Only ${availableInventory} of ${product.name} remaining.`);
     }
 
     const unitPriceCents = Number(product.price_cents);

@@ -46,12 +46,13 @@ export const config = {
     /** Admin session lifetime. */
     sessionTtlSeconds: Number(process.env.SESSION_TTL_SECONDS ?? 60 * 60 * 8),
     cookieName: 'lumera_admin_session',
+    customerCookieName: 'lumera_customer_session',
   },
 
   /** Seed credentials for the first admin user (used by `npm run db:seed`). */
   seedAdmin: {
     email: process.env.ADMIN_EMAIL ?? 'admin@lumera.test',
-    password: process.env.ADMIN_PASSWORD ?? 'Erotic_bastard',
+    password: process.env.ADMIN_PASSWORD ?? 'lumera-admin',
     name: process.env.ADMIN_NAME ?? 'LUMÉRA Admin',
   },
 
@@ -61,9 +62,11 @@ export const config = {
      * touches real money. Choose from: 'mock', 'stripe', 'paypal', 'zelle', 'visa'
      * See server/src/services/payments/ for implementation details.
      */
-    provider: (process.env.PAYMENT_PROVIDER ?? 'mock') as 'mock' | 'stripe' | 'paypal' | 'zelle' | 'visa',
+    provider: (process.env.PAYMENT_PROVIDER ?? 'mock') as 'mock' | 'stripe' | 'flutterwave' | 'paypal' | 'zelle' | 'visa',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    flutterwaveSecretKey: process.env.FLW_SECRET_KEY ?? '',
+    flutterwaveSecretHash: process.env.FLW_SECRET_HASH ?? '',
     paypalClientId: process.env.PAYPAL_CLIENT_ID ?? '',
     paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET ?? '',
     paypalMode: (process.env.PAYPAL_MODE ?? 'sandbox') as 'sandbox' | 'live',

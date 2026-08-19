@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { loadStripe, type Stripe, type StripeCardElement } from '@stripe/stripe-js';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../store/cart';
 import { api, ApiError } from '../lib/api';
@@ -52,6 +53,9 @@ export function Checkout() {
   const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const stripeRef = useRef<Stripe | null>(null);
+  const stripeCardRef = useRef<StripeCardElement | null>(null);
+  const stripeMountRef = useRef<HTMLDivElement>(null);
 
   useSeo({
     title: 'Checkout | LUMÉRA',
@@ -63,6 +67,26 @@ export function Checkout() {
   useEffect(() => {
     api.config().then(setStoreConfig).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (storeConfig?.payment.provider !== 'stripe' || !stripeMountRef.current) return;
+    const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+    if (!publishableKey) return;
+    let disposed = false;
+    loadStripe(publishableKey).then((stripe) => {
+      if (!stripe || disposed || !stripeMountRef.current) return;
+      stripeRef.current = stripe;
+      const card = stripe.elements().create('card', { style: { base: { color: '#292723', fontFamily: 'system-ui, sans-serif', fontSize: '16px' } } });
+      card.mount(stripeMountRef.current);
+      stripeCardRef.current = card;
+    });
+    return () => {
+      disposed = true;
+      stripeCardRef.current?.unmount();
+      stripeCardRef.current = null;
+      stripeRef.current = null;
+    };
+  }, [storeConfig?.payment.provider]);
 
   useEffect(() => {
     if (cart.items.length > 0) {
@@ -138,33 +162,39 @@ export function Checkout() {
       });
 
       const { order, payment } = result;
+      let completedOrder = order;
 
-      // A real provider may require a redirect (hosted checkout) or an
-      // on-page confirmation step with its SDK. Both paths are handled here.
+      // Hosted providers return a redirect; the order page performs server-side verification.
       if (payment.status === 'requires_redirect' && payment.redirectUrl) {
         window.location.href = payment.redirectUrl;
         return;
       }
 
       if (payment.status === 'requires_client_confirmation') {
-        // TODO(payments): hand payment.clientSecret to the provider's client SDK
-        // (e.g. stripe.confirmPayment) and only clear the cart once it resolves.
-        setSubmitError(
-          'This payment provider requires an additional confirmation step that is not implemented yet. See client/src/pages/Checkout.tsx.',
-        );
-        setSubmitting(false);
-        return;
+        const stripe = stripeRef.current;
+        const card = stripeCardRef.current;
+        if (!stripe || !card || !payment.clientSecret) throw new Error('The secure card form is not ready. Please refresh and try again.');
+        const confirmation = await stripe.confirmCardPayment(payment.clientSecret, {
+          payment_method: { card, billing_details: { name: form.fullName, email: form.email, phone: form.phone } },
+        });
+        if (confirmation.error) {
+          await api.paymentFail(payment.reference, confirmation.error.message ?? 'Stripe payment failed.');
+          throw new Error(confirmation.error.message ?? 'Payment failed.');
+        }
+        const verified = await api.paymentVerify(payment.reference);
+        if (!verified.paid) throw new Error('Payment is still awaiting provider confirmation.');
+        completedOrder = verified.order;
       }
 
       track('purchase_completed', {
-        orderNumber: order.orderNumber,
-        totalCents: order.totalCents,
-        itemCount: order.items.length,
+        orderNumber: completedOrder.orderNumber,
+        totalCents: completedOrder.totalCents,
+        itemCount: completedOrder.items.length,
       });
 
       const email = form.email.trim();
       cart.clear();
-      navigate(`/order/${order.orderNumber}?email=${encodeURIComponent(email)}`, { replace: true });
+      navigate(`/order/${completedOrder.orderNumber}?email=${encodeURIComponent(email)}`, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && Array.isArray(err.details)) {
         const fieldErrors: Record<string, string> = {};
@@ -385,10 +415,12 @@ export function Checkout() {
                   </p>
                 </>
               ) : (
-                <p className="text-[14.5px] leading-relaxed text-ink-soft">
-                  You will be taken to our payment provider ({storeConfig?.payment.provider}) to
-                  complete payment securely. LUMÉRA never sees or stores your card details.
-                </p>
+                <>
+                  <p className="text-[14.5px] leading-relaxed text-ink-soft">
+                    {storeConfig?.payment.provider === 'stripe' ? 'Pay securely with Stripe. Your card details are tokenized by Stripe and never touch the LUMÉRA server.' : `You will be taken to our payment provider (${storeConfig?.payment.provider}) to complete payment securely.`}
+                  </p>
+                  {storeConfig?.payment.provider === 'stripe' && <div ref={stripeMountRef} className="mt-5 border border-sand-300 bg-white p-4" aria-label="Card details" />}
+                </>
               )}
             </div>
           </section>

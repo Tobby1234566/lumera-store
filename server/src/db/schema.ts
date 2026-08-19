@@ -35,6 +35,7 @@ export async function createSchema(db: Knex): Promise<void> {
       t.integer('compare_at_price_cents').nullable();
       t.string('size').notNullable();
       t.integer('inventory').notNullable().defaultTo(0);
+      t.integer('reserved_inventory').notNullable().defaultTo(0);
       t.boolean('is_active').notNullable().defaultTo(true);
       t.boolean('is_featured').notNullable().defaultTo(false);
       t.boolean('is_best_seller').notNullable().defaultTo(false);
@@ -100,9 +101,55 @@ export async function createSchema(db: Knex): Promise<void> {
       t.integer('orders_count').notNullable().defaultTo(0);
       t.integer('total_spent_cents').notNullable().defaultTo(0);
       t.boolean('accepts_marketing').notNullable().defaultTo(false);
+      t.string('password_hash').nullable();
+      t.timestamp('email_verified_at').nullable();
       t.timestamp('created_at').notNullable();
       t.timestamp('updated_at').notNullable();
     });
+  }
+
+  if (!(await has('customer_sessions'))) {
+    await db.schema.createTable('customer_sessions', (t) => {
+      t.string('id').primary();
+      t.string('customer_id').notNullable().references('id').inTable('customers').onDelete('CASCADE');
+      t.string('token_hash').notNullable().unique();
+      t.timestamp('expires_at').notNullable().index();
+      t.timestamp('created_at').notNullable();
+      t.timestamp('last_used_at').notNullable();
+    });
+    await db.schema.alterTable('customer_sessions', (t) => t.index('customer_id'));
+  }
+
+  if (!(await has('customer_password_resets'))) {
+    await db.schema.createTable('customer_password_resets', (t) => {
+      t.string('id').primary();
+      t.string('customer_id').notNullable().references('id').inTable('customers').onDelete('CASCADE');
+      t.string('token_hash').notNullable().unique();
+      t.timestamp('expires_at').notNullable().index();
+      t.timestamp('used_at').nullable();
+      t.timestamp('created_at').notNullable();
+    });
+    await db.schema.alterTable('customer_password_resets', (t) => t.index('customer_id'));
+  }
+
+  if (!(await has('customer_addresses'))) {
+    await db.schema.createTable('customer_addresses', (t) => {
+      t.string('id').primary();
+      t.string('customer_id').notNullable().references('id').inTable('customers').onDelete('CASCADE');
+      t.string('label').notNullable().defaultTo('Shipping');
+      t.string('full_name').notNullable();
+      t.string('phone').nullable();
+      t.string('address_line1').notNullable();
+      t.string('address_line2').nullable();
+      t.string('city').notNullable();
+      t.string('state').nullable();
+      t.string('postal_code').nullable();
+      t.string('country').notNullable();
+      t.boolean('is_default').notNullable().defaultTo(false);
+      t.timestamp('created_at').notNullable();
+      t.timestamp('updated_at').notNullable();
+    });
+    await db.schema.alterTable('customer_addresses', (t) => t.index('customer_id'));
   }
 
   if (!(await has('orders'))) {
@@ -144,6 +191,35 @@ export async function createSchema(db: Knex): Promise<void> {
       t.timestamp('paid_at').nullable();
       t.timestamp('created_at').notNullable().index();
       t.timestamp('updated_at').notNullable();
+    });
+  }
+
+  if (!(await has('payment_records'))) {
+    await db.schema.createTable('payment_records', (t) => {
+      t.string('id').primary();
+      t.string('order_id').notNullable().references('id').inTable('orders').onDelete('CASCADE');
+      t.string('provider').notNullable();
+      t.string('reference').notNullable();
+      t.string('status').notNullable();
+      t.integer('amount_cents').notNullable();
+      t.string('currency').notNullable();
+      t.string('provider_event_id').nullable().unique();
+      t.text('failure_reason').nullable();
+      t.timestamp('created_at').notNullable();
+      t.timestamp('updated_at').notNullable();
+      t.unique(['provider', 'reference']);
+    });
+    await db.schema.alterTable('payment_records', (t) => t.index('order_id'));
+  }
+
+  if (!(await has('webhook_events'))) {
+    await db.schema.createTable('webhook_events', (t) => {
+      t.string('id').primary();
+      t.string('provider').notNullable();
+      t.string('event_id').notNullable();
+      t.string('event_type').notNullable();
+      t.timestamp('received_at').notNullable();
+      t.unique(['provider', 'event_id']);
     });
   }
 
@@ -217,9 +293,32 @@ export async function createSchema(db: Knex): Promise<void> {
       t.text('payload').notNullable().defaultTo('{}');
       t.timestamp('created_at').notNullable();
     });
+    }
+
+  // Additive upgrades for databases created before account/payment fields existed.
+  const productColumns = await db('products').columnInfo();
+  if (!productColumns.reserved_inventory) {
+    await db.schema.alterTable('products', (table) => table.integer('reserved_inventory').notNullable().defaultTo(0));
+  }
+
+  const customerColumns = await db('customers').columnInfo();
+  if (!customerColumns.password_hash) {
+    await db.schema.alterTable('customers', (table) => table.string('password_hash').nullable());
+  }
+  if (!customerColumns.email_verified_at) {
+    await db.schema.alterTable('customers', (table) => table.timestamp('email_verified_at').nullable());
+  }
+
+  const orderColumns = await db('orders').columnInfo();
+  if (!orderColumns.idempotency_key) {
+    await db.schema.alterTable('orders', (table) => table.string('idempotency_key').nullable());
+  }
+  try {
+    await db.schema.alterTable('orders', (table) => table.unique(['idempotency_key']));
+  } catch {
+    // The unique index may already exist on a database upgraded previously.
   }
 }
-
 
 
 export async function dropSchema(db: Knex): Promise<void> {
@@ -229,7 +328,12 @@ export async function dropSchema(db: Knex): Promise<void> {
     'subscribers',
     'order_events',
     'order_items',
+    'payment_records',
+    'webhook_events',
     'orders',
+    'customer_addresses',
+    'customer_password_resets',
+    'customer_sessions',
     'email_verifications',
     'customers',
     'discount_codes',

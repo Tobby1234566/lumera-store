@@ -24,7 +24,7 @@ export type AdminClaims = { sub: string; email: string; name: string; role: stri
  * inferred from verified email verification records in the database.
  */
 
-export type CustomerClaims = { email: string; verified: boolean };
+export type CustomerClaims = { id: string; email: string; name: string; verified: boolean };
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -97,7 +97,7 @@ export async function withCustomerIdentity(
 
   // For now, attach the email. In a real app, you could verify a JWT
   // or look up the customer's verified status from the database.
-  req.customer = { email, verified: false };
+  req.customer = { id: '', email, name: '', verified: false };
   next();
 }
 

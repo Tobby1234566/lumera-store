@@ -20,6 +20,8 @@ export function OrderConfirmation() {
   const { orderNumber = '' } = useParams();
   const [params] = useSearchParams();
   const email = params.get('email') ?? undefined;
+  const paymentReference = params.get('tx_ref') ?? params.get('reference');
+  const paymentStatus = params.get('status');
 
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState('');
@@ -33,14 +35,27 @@ export function OrderConfirmation() {
 
   useEffect(() => {
     let active = true;
-    api
-      .order(orderNumber, email)
-      .then((r) => active && setOrder(r.order))
-      .catch((err) => active && setError(err instanceof Error ? err.message : 'Order not found.'));
+    async function load() {
+      try {
+        if (paymentReference && paymentStatus === 'successful') {
+          const verified = await api.paymentVerify(paymentReference);
+          if (active) setOrder(verified.order);
+          return;
+        }
+        if (paymentReference && paymentStatus === 'failed') {
+          await api.paymentFail(paymentReference, 'Payment provider reported a failed payment.');
+        }
+        const result = await api.order(orderNumber, email);
+        if (active) setOrder(result.order);
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : 'Order not found.');
+      }
+    }
+    void load();
     return () => {
       active = false;
     };
-  }, [orderNumber, email]);
+  }, [orderNumber, email, paymentReference, paymentStatus]);
 
   if (error) {
     return (

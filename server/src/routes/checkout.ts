@@ -105,8 +105,28 @@ checkoutRouter.post(
         customer: addressSchema,
         items: z.array(cartLineSchema).min(1).max(50),
         discountCode: z.string().max(40).nullable().optional(),
+        idempotencyKey: z.string().min(8).max(128).optional(),
       })
       .parse(req.body);
+
+    const idempotencyKey = String(req.headers['idempotency-key'] ?? body.idempotencyKey ?? '').trim() || null;
+    if (idempotencyKey) {
+      const existing = await db('orders').where({ idempotency_key: idempotencyKey }).first();
+      if (existing) {
+        const existingOrder = await loadOrder(existing.id);
+        res.status(200).json({
+          order: existingOrder,
+          payment: {
+            provider: existing.payment_provider,
+            status: existing.payment_status === 'paid' ? 'succeeded' : 'pending',
+            redirectUrl: null,
+            clientSecret: null,
+            isMock: existing.payment_provider === 'mock',
+          },
+        });
+        return;
+      }
+    }
 
     // Recompute every amount from the database — never trust client totals.
     const quote = await priceCart(body.items, body.discountCode ?? null);
@@ -126,6 +146,16 @@ checkoutRouter.post(
     const number = orderNumber();
 
     await db.transaction(async (trx) => {
+      // Reserve each line atomically. The quote is advisory; this conditional
+      // update is the concurrency-safe final stock check.
+      for (const line of quote.lines) {
+        const reserved = await trx('products')
+          .where({ id: line.productId, is_active: true })
+          .whereRaw('(inventory - reserved_inventory) >= ?', [line.quantity])
+          .update({ reserved_inventory: trx.raw('reserved_inventory + ?', [line.quantity]) });
+        if (reserved !== 1) throw badRequest(`Some items in your cart are no longer available.`);
+      }
+
       // Upsert the customer record.
       let customer = await trx('customers').where({ email }).first();
       if (customer) {
@@ -175,6 +205,7 @@ checkoutRouter.post(
         status: 'pending',
         payment_status: 'unpaid',
         payment_provider: provider.name,
+        idempotency_key: idempotencyKey,
         created_at: nowIso,
         updated_at: nowIso,
       });
@@ -202,17 +233,34 @@ checkoutRouter.post(
       });
     });
 
-    const intent = await provider.createIntent({
-      orderId,
-      orderNumber: number,
-      amountCents: quote.totalCents,
-      currency: quote.currency,
-      customerEmail: email,
-      returnUrl: `${config.appUrl}/order/${number}`,
-    });
+    let intent;
+    try {
+      intent = await provider.createIntent({
+        orderId,
+        orderNumber: number,
+        amountCents: quote.totalCents,
+        currency: quote.currency,
+        customerEmail: email,
+        returnUrl: `${config.appUrl}/order/${number}`,
+      });
+    } catch (error) {
+      await failOrderPayment(orderId, error instanceof Error ? error.message : 'Payment initialization failed.');
+      throw error;
+    }
 
     await db('orders').where({ id: orderId }).update({
       payment_reference: intent.reference,
+      updated_at: new Date().toISOString(),
+    });
+    await db('payment_records').insert({
+      id: id('pay'),
+      order_id: orderId,
+      provider: provider.name,
+      reference: intent.reference,
+      status: intent.status === 'succeeded' ? 'paid' : 'pending',
+      amount_cents: quote.totalCents,
+      currency: quote.currency,
+      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
 
@@ -256,6 +304,7 @@ export async function markOrderPaid(orderId: string, reference: string): Promise
   await db.transaction(async (trx) => {
     const order = await trx('orders').where({ id: orderId }).first();
     if (!order || order.payment_status === 'paid') return;
+    if (order.payment_status === 'failed' || order.status === 'cancelled') return;
 
     await trx('orders').where({ id: orderId }).update({
       status: 'paid',
@@ -268,13 +317,16 @@ export async function markOrderPaid(orderId: string, reference: string): Promise
     const items = await trx('order_items').where({ order_id: orderId }).select('*');
     for (const item of items) {
       if (!item.product_id) continue;
-      await trx('products')
+      const updated = await trx('products')
         .where({ id: item.product_id })
+        .where('reserved_inventory', '>=', item.quantity)
         .update({
-          inventory: trx.raw('GREATEST(inventory - ?, 0)', [item.quantity]),
+          inventory: trx.raw('inventory - ?', [item.quantity]),
+          reserved_inventory: trx.raw('reserved_inventory - ?', [item.quantity]),
           units_sold: trx.raw('units_sold + ?', [item.quantity]),
           updated_at: nowIso,
         });
+      if (updated !== 1) throw new Error(`Inventory reservation missing for ${item.product_id}.`);
     }
 
     if (order.discount_code) {
@@ -293,6 +345,10 @@ export async function markOrderPaid(orderId: string, reference: string): Promise
         });
     }
 
+    await trx('payment_records')
+      .where({ order_id: orderId, reference })
+      .update({ status: 'paid', updated_at: nowIso });
+
     await trx('order_events').insert({
       order_id: orderId,
       type: 'payment',
@@ -305,6 +361,25 @@ export async function markOrderPaid(orderId: string, reference: string): Promise
       payload: JSON.stringify({ orderId, totalCents: order.total_cents, currency: order.currency }),
       created_at: nowIso,
     });
+  });
+}
+
+export async function failOrderPayment(orderId: string, reason: string): Promise<void> {
+  const timestamp = new Date().toISOString();
+  await db.transaction(async (trx) => {
+    const order = await trx('orders').where({ id: orderId }).first();
+    if (!order || order.payment_status === 'paid') return;
+    const items = await trx('order_items').where({ order_id: orderId }).select('*');
+    for (const item of items) {
+      if (!item.product_id) continue;
+      await trx('products')
+        .where({ id: item.product_id })
+        .where('reserved_inventory', '>=', item.quantity)
+        .update({ reserved_inventory: trx.raw('reserved_inventory - ?', [item.quantity]), updated_at: timestamp });
+    }
+    await trx('orders').where({ id: orderId }).update({ status: 'cancelled', payment_status: 'failed', updated_at: timestamp });
+    await trx('payment_records').where({ order_id: orderId }).update({ status: 'failed', failure_reason: reason, updated_at: timestamp });
+    await trx('order_events').insert({ order_id: orderId, type: 'payment_failed', message: reason.slice(0, 500), created_at: timestamp });
   });
 }
 
@@ -399,19 +474,87 @@ checkoutRouter.get(
   }),
 );
 
+/** Verify a hosted-redirect payment after the customer returns to the store. */
+checkoutRouter.post(
+  '/payment/fail',
+  checkoutLimiter,
+  asyncHandler(async (req, res) => {
+    const body = z.object({ reference: z.string().min(1).max(200), reason: z.string().max(500).optional() }).parse(req.body);
+    const order = await db('orders').where({ payment_reference: body.reference }).first();
+    if (order) await failOrderPayment(order.id, body.reason ?? 'Payment was not completed.');
+    res.json({ ok: true });
+  }),
+);
+
+checkoutRouter.post(
+  '/payment/verify',
+  checkoutLimiter,
+  asyncHandler(async (req, res) => {
+    const body = z.object({ reference: z.string().min(1).max(200) }).parse(req.body);
+    const provider = getPaymentProvider();
+    const verification = await provider.verify(body.reference);
+    const order = await db('orders').where({ payment_reference: body.reference }).first();
+    if (!order) throw notFound('Payment order not found.');
+    if (
+      verification.amountCents !== undefined && Number(verification.amountCents) !== Number(order.total_cents)
+    ) {
+      throw badRequest('Payment amount could not be verified.');
+    }
+    if (verification.paid) await markOrderPaid(order.id, body.reference);
+    else await failOrderPayment(order.id, 'Payment was not completed.');
+    res.json({ order: await loadOrder(order.id), paid: verification.paid });
+  }),
+);
+
 /**
  * POST /api/payments/webhook — mounted separately in index.ts with a raw body
  * parser so provider signatures can be verified.
  */
 export const webhookHandler = asyncHandler(async (req, res) => {
   const provider = getPaymentProvider();
-  const signature = req.headers['stripe-signature'] as string | undefined;
-  const parsed = await provider.parseWebhook(req.body as Buffer, signature);
+  const signature = provider.name === 'stripe'
+    ? req.headers['stripe-signature'] as string | undefined
+    : req.headers['flutterwave-signature'] as string | undefined;
+  let parsed;
+  try {
+    parsed = await provider.parseWebhook(req.body as Buffer, signature);
+  } catch (error) {
+    console.error(`[payments] webhook rejected for ${provider.name}:`, error instanceof Error ? error.message : error);
+    res.status(401).json({ error: 'Invalid payment webhook.' });
+    return;
+  }
   if (!parsed) return res.json({ received: true });
 
-  if (parsed.paid) {
-    const order = await db('orders').where({ payment_reference: parsed.reference }).first();
-    if (order) await markOrderPaid(order.id, parsed.reference);
+  if (parsed.eventId) {
+    const existingEvent = await db('webhook_events').where({ provider: provider.name, event_id: parsed.eventId }).first();
+    if (existingEvent) return res.json({ received: true, duplicate: true });
+    try {
+      await db('webhook_events').insert({
+        id: id('wh'),
+        provider: provider.name,
+        event_id: parsed.eventId,
+        event_type: parsed.eventType ?? 'unknown',
+        received_at: new Date().toISOString(),
+      });
+    } catch {
+      return res.json({ received: true, duplicate: true });
+    }
   }
+
+  const order = await db('orders').where({ payment_reference: parsed.reference }).first();
+  if (!order) return res.json({ received: true });
+  if (
+    parsed.amountCents !== undefined && Number(parsed.amountCents) !== Number(order.total_cents)
+  ) {
+    res.status(400).json({ error: 'Payment amount mismatch.' });
+    return;
+  }
+  if (parsed.currency && String(parsed.currency).toUpperCase() !== String(order.currency).toUpperCase()) {
+    res.status(400).json({ error: 'Payment currency mismatch.' });
+    return;
+  }
+
+  if (parsed.paid) await markOrderPaid(order.id, parsed.reference);
+  else await failOrderPayment(order.id, 'Payment provider reported a failed payment.');
   res.json({ received: true });
 });
