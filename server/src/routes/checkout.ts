@@ -514,7 +514,9 @@ export const webhookHandler = asyncHandler(async (req, res) => {
   const provider = getPaymentProvider();
   const signature = provider.name === 'stripe'
     ? req.headers['stripe-signature'] as string | undefined
-    : req.headers['flutterwave-signature'] as string | undefined;
+    : provider.name === 'paystack'
+      ? req.headers['x-paystack-signature'] as string | undefined
+      : req.headers['flutterwave-signature'] as string | undefined;
   let parsed;
   try {
     parsed = await provider.parseWebhook(req.body as Buffer, signature);

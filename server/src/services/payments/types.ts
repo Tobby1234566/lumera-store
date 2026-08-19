@@ -3,8 +3,8 @@
  * PAYMENT PROVIDER INTERFACE
  * ─────────────────────────────────────────────────────────────────────────────
  * Every payment provider must implement this interface. The provider pattern
- * allows the system to support multiple payment processors (Stripe, PayPal,
- * Zelle, Visa Direct, etc.) without changing any checkout or order logic.
+ * allows the system to support multiple payment processors (Stripe, Paystack,
+ * PayPal, Zelle, Visa Direct, etc.) without changing any checkout or order logic.
  *
  * Providers are registered in services/payments/index.ts and selected at
  * runtime via the PAYMENT_PROVIDER environment variable.
@@ -16,6 +16,12 @@
  *   - Status: Fully implemented
  *   - Notes: Uses Stripe Payment Intents API with hosted checkout
  *   - Config: STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY
+ *
+ * PAYSTACK (paystack.ts)
+ *   - Live: Yes (real payments)
+ *   - Status: Fully implemented
+ *   - Notes: Uses Paystack hosted checkout with HMAC-SHA512 webhook validation
+ *   - Config: PAYSTACK_SECRET_KEY
  *
  * PAYPAL (paypal.ts)
  *   - Live: Yes (real payments)

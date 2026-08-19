@@ -59,11 +59,12 @@ export const config = {
   payments: {
     /**
      * Active payment provider. 'mock' is a development-only driver that never
-     * touches real money. Choose from: 'mock', 'stripe', 'paypal', 'zelle', 'visa'
+     * touches real money. Choose from: 'mock', 'stripe', 'flutterwave', 'paystack', 'paypal', 'zelle', 'visa'
      * See server/src/services/payments/ for implementation details.
      */
-    provider: (process.env.PAYMENT_PROVIDER ?? 'mock') as 'mock' | 'stripe' | 'flutterwave' | 'paypal' | 'zelle' | 'visa',
+    provider: (process.env.PAYMENT_PROVIDER ?? 'mock') as 'mock' | 'stripe' | 'flutterwave' | 'paystack' | 'paypal' | 'zelle' | 'visa',
     stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+    paystackSecretKey: process.env.PAYSTACK_SECRET_KEY ?? '',
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
     flutterwaveSecretKey: process.env.FLW_SECRET_KEY ?? '',
     flutterwaveSecretHash: process.env.FLW_SECRET_HASH ?? '',

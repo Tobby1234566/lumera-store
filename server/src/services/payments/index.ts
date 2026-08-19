@@ -3,6 +3,7 @@ import type { PaymentProvider } from './types.js';
 import { mockProvider } from './mock.js';
 import { stripeProvider } from './stripe.js';
 import { flutterwaveProvider } from './flutterwave.js';
+import { paystackProvider } from './paystack.js';
 import { paypalProvider } from './paypal.js';
 import { zelleProvider } from './zelle.js';
 import { visaProvider } from './visa.js';
@@ -26,6 +27,7 @@ import { visaProvider } from './visa.js';
  *   - mock: Development-only, all payments succeed instantly
  *   - stripe: Stripe Payment Intents API
  *   - flutterwave: Flutterwave Standard hosted checkout
+ *   - paystack: Paystack hosted checkout with signed webhooks
  *   - paypal: PayPal Commerce Platform
  *   - zelle: Bank transfer integration (mock in dev, requires bank API in prod)
  *   - visa: Visa Direct card push payments (production ready)
@@ -34,6 +36,7 @@ const providers: Record<string, PaymentProvider> = {
   mock: mockProvider,
   stripe: stripeProvider,
   flutterwave: flutterwaveProvider,
+  paystack: paystackProvider,
   paypal: paypalProvider,
   zelle: zelleProvider,
   visa: visaProvider,
