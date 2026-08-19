@@ -11,7 +11,12 @@ import type { AccountOrder, Customer, CustomerAddress, Order, Product, Quote, Re
  * NOTE: only VITE_-prefixed variables reach the browser bundle, and nothing
  * secret is ever placed in one.
  */
-const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+// The storefront is deployed to Vercel while the API runs on Render. Keep
+// VITE_API_URL configurable, but use the project API host when the production
+// build does not define it so browser requests never fall through to Vercel's
+// SPA index.html rewrite.
+const DEFAULT_PRODUCTION_API_URL = 'https://lumera-store.onrender.com';
+const BASE = (import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? DEFAULT_PRODUCTION_API_URL : '')).replace(/\/$/, '');
 
 const IS_DEV = import.meta.env.DEV;
 // Opt-in flag for development-only mocked APIs. Set `VITE_ENABLE_DEV_MOCKS=true`
@@ -59,7 +64,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 204) return undefined as T;
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: any = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const message = response.ok
+        ? 'The server returned an unexpected response.'
+        : `Request failed with status ${response.status}.`;
+      throw new ApiError(response.status, message, { contentType: response.headers.get('content-type') });
+    }
+  }
 
   if (!response.ok) {
     throw new ApiError(response.status, data?.error ?? 'Something went wrong.', data?.details);
