@@ -344,14 +344,9 @@ authRouter.post('/reset-password', recoveryLimiter, asyncHandler(async (req, res
   res.json({ message: 'Password reset successfully. Please sign in.' });
 }));
 
-authRouter.get('/verify-status/:email', asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.params.email);
-  const customer = await db('customers').where({ email }).first();
-  const verification = await db('email_verifications').where({ email }).orderBy('created_at', 'desc').first();
-  const expired = Boolean(verification && !verification.is_verified && new Date(verification.expires_at) < new Date());
+authRouter.get('/verify-status/:email', asyncHandler(async (_req, res) => {
+  // Do not disclose whether an arbitrary email belongs to an account or its verification state.
   res.json({
-    verified: Boolean(customer?.email_verified_at),
-    expired,
-    message: customer?.email_verified_at ? 'Email verified' : expired ? 'Verification expired.' : 'Awaiting verification.',
+    message: 'If an account exists, its verification status can be checked from the verification email.',
   });
 }));

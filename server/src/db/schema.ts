@@ -183,6 +183,9 @@ export async function createSchema(db: Knex): Promise<void> {
       t.string('payment_provider').nullable();
       /** Provider reference only — never raw card data. */
       t.string('payment_reference').nullable();
+      /** Hashed short-lived token for the customer’s post-checkout order access. */
+      t.string('order_access_token_hash').nullable().index();
+      t.timestamp('order_access_token_expires_at').nullable();
 
       t.string('tracking_number').nullable();
       t.string('shipping_carrier').nullable();
@@ -312,6 +315,12 @@ export async function createSchema(db: Knex): Promise<void> {
   const orderColumns = await db('orders').columnInfo();
   if (!orderColumns.idempotency_key) {
     await db.schema.alterTable('orders', (table) => table.string('idempotency_key').nullable());
+  }
+  if (!orderColumns.order_access_token_hash) {
+    await db.schema.alterTable('orders', (table) => table.string('order_access_token_hash').nullable().index());
+  }
+  if (!orderColumns.order_access_token_expires_at) {
+    await db.schema.alterTable('orders', (table) => table.timestamp('order_access_token_expires_at').nullable());
   }
   try {
     await db.schema.alterTable('orders', (table) => table.unique(['idempotency_key']));

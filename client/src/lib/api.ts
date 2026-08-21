@@ -147,13 +147,18 @@ export const api = {
   }) =>
     post<{
       order: Order;
-      payment: { provider: string; status: string; reference: string; redirectUrl: string | null; clientSecret: string | null; isMock: boolean };
+      payment: { provider: string; status: string; reference: string; redirectUrl: string | null; clientSecret: string | null; accessToken: string; isMock: boolean };
     }>('/api/checkout/order', payload),
 
-  order: (orderNumber: string, email?: string) =>
-    request<{ order: Order }>(
-      `/api/checkout/order/${encodeURIComponent(orderNumber)}${email ? `?email=${encodeURIComponent(email)}` : ''}`,
-    ),
+  order: (orderNumber: string, email?: string, accessToken?: string) => {
+    const params = new URLSearchParams();
+    if (email) params.set('email', email);
+    if (accessToken) params.set('access_token', accessToken);
+    const query = params.toString();
+    return request<{ order: Order }>(
+      `/api/checkout/order/${encodeURIComponent(orderNumber)}${query ? `?${query}` : ''}`,
+    );
+  },
 
   newsletter: (email: string, source = 'footer') =>
     post<{ ok: boolean; message: string }>('/api/newsletter', { email, source }),
@@ -164,8 +169,8 @@ export const api = {
   track: (name: string, payload: Record<string, string | number | boolean> = {}) =>
     post<void>('/api/analytics', { name, payload }).catch(() => undefined),
 
-  paymentVerify: (reference: string) => post<{ order: Order; paid: boolean }>('/api/checkout/payment/verify', { reference }),
-  paymentFail: (reference: string, reason = 'Payment was not completed.') => post<{ ok: boolean }>('/api/checkout/payment/fail', { reference, reason }),
+  paymentVerify: (reference: string, accessToken: string) => post<{ order: Order; paid: boolean }>('/api/checkout/payment/verify', { reference, accessToken }),
+  paymentFail: (reference: string, reason = 'Payment was not completed.', accessToken?: string) => post<{ ok: boolean }>('/api/checkout/payment/fail', { reference, reason, accessToken }),
 
   customer: {
     me: () => request<{ customer: Customer; addresses: CustomerAddress[] }>('/api/auth/me'),

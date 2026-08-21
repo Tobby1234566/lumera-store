@@ -22,6 +22,7 @@ export function OrderConfirmation() {
   const email = params.get('email') ?? undefined;
   const paymentReference = params.get('tx_ref') ?? params.get('reference');
   const paymentStatus = params.get('status');
+  const accessToken = params.get('access_token') ?? '';
 
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState('');
@@ -37,15 +38,15 @@ export function OrderConfirmation() {
     let active = true;
     async function load() {
       try {
-        if (paymentReference && paymentStatus === 'successful') {
-          const verified = await api.paymentVerify(paymentReference);
+        if (paymentReference && accessToken && (paymentStatus === 'successful' || paymentStatus === 'success')) {
+          const verified = await api.paymentVerify(paymentReference, accessToken);
           if (active) setOrder(verified.order);
           return;
         }
-        if (paymentReference && paymentStatus === 'failed') {
-          await api.paymentFail(paymentReference, 'Payment provider reported a failed payment.');
+        if (paymentReference && accessToken && (paymentStatus === 'failed' || paymentStatus === 'abandoned')) {
+          await api.paymentFail(paymentReference, 'Payment provider reported a failed payment.', accessToken);
         }
-        const result = await api.order(orderNumber, email);
+        const result = await api.order(orderNumber, email, accessToken);
         if (active) setOrder(result.order);
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Order not found.');
@@ -55,7 +56,7 @@ export function OrderConfirmation() {
     return () => {
       active = false;
     };
-  }, [orderNumber, email, paymentReference, paymentStatus]);
+  }, [orderNumber, email, paymentReference, paymentStatus, accessToken]);
 
   if (error) {
     return (

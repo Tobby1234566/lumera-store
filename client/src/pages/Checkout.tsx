@@ -178,10 +178,10 @@ export function Checkout() {
           payment_method: { card, billing_details: { name: form.fullName, email: form.email, phone: form.phone } },
         });
         if (confirmation.error) {
-          await api.paymentFail(payment.reference, confirmation.error.message ?? 'Stripe payment failed.');
+          await api.paymentFail(payment.reference, confirmation.error.message ?? 'Stripe payment failed.', payment.accessToken);
           throw new Error(confirmation.error.message ?? 'Payment failed.');
         }
-        const verified = await api.paymentVerify(payment.reference);
+        const verified = await api.paymentVerify(payment.reference, payment.accessToken);
         if (!verified.paid) throw new Error('Payment is still awaiting provider confirmation.');
         completedOrder = verified.order;
       }
@@ -194,7 +194,7 @@ export function Checkout() {
 
       const email = form.email.trim();
       cart.clear();
-      navigate(`/order/${completedOrder.orderNumber}?email=${encodeURIComponent(email)}`, { replace: true });
+      navigate(`/order/${completedOrder.orderNumber}?email=${encodeURIComponent(email)}&access_token=${encodeURIComponent(payment.accessToken)}`, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && Array.isArray(err.details)) {
         const fieldErrors: Record<string, string> = {};

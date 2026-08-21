@@ -11,6 +11,12 @@ import { id, orderNumber } from '../lib/ids.js';
 import { serializeOrder } from '../lib/serialize.js';
 import { sanitizeText, normalizeEmail } from '../lib/sanitize.js';
 import {
+  ORDER_ACCESS_TOKEN_TTL_MS,
+  createOrderAccessToken,
+  hashOrderAccessToken,
+  hasOrderAccess,
+} from '../lib/order-access.js';
+import {
   sendEmail,
   orderConfirmationEmail,
   paymentConfirmationEmail,
@@ -113,6 +119,15 @@ checkoutRouter.post(
     if (idempotencyKey) {
       const existing = await db('orders').where({ idempotency_key: idempotencyKey }).first();
       if (existing) {
+        const existingEmail = normalizeEmail(body.customer.email);
+        if (existing.email !== existingEmail) throw notFound('Order not found.');
+        const accessToken = createOrderAccessToken();
+        const accessTokenExpiresAt = new Date(Date.now() + ORDER_ACCESS_TOKEN_TTL_MS).toISOString();
+        await db('orders').where({ id: existing.id }).update({
+          order_access_token_hash: hashOrderAccessToken(accessToken),
+          order_access_token_expires_at: accessTokenExpiresAt,
+          updated_at: new Date().toISOString(),
+        });
         const existingOrder = await loadOrder(existing.id);
         res.status(200).json({
           order: existingOrder,
@@ -121,6 +136,7 @@ checkoutRouter.post(
             status: existing.payment_status === 'paid' ? 'succeeded' : 'pending',
             redirectUrl: null,
             clientSecret: null,
+            accessToken,
             isMock: existing.payment_provider === 'mock',
           },
         });
@@ -144,6 +160,8 @@ checkoutRouter.post(
 
     const orderId = id('ord');
     const number = orderNumber();
+    const accessToken = createOrderAccessToken();
+    const accessTokenExpiresAt = new Date(Date.now() + ORDER_ACCESS_TOKEN_TTL_MS).toISOString();
 
     await db.transaction(async (trx) => {
       // Reserve each line atomically. The quote is advisory; this conditional
@@ -205,6 +223,8 @@ checkoutRouter.post(
         status: 'pending',
         payment_status: 'unpaid',
         payment_provider: provider.name,
+        order_access_token_hash: hashOrderAccessToken(accessToken),
+        order_access_token_expires_at: accessTokenExpiresAt,
         idempotency_key: idempotencyKey,
         created_at: nowIso,
         updated_at: nowIso,
@@ -241,7 +261,7 @@ checkoutRouter.post(
         amountCents: quote.totalCents,
         currency: quote.currency,
         customerEmail: email,
-        returnUrl: `${config.appUrl}/order/${number}`,
+        returnUrl: `${config.appUrl}/order/${number}?access_token=${encodeURIComponent(accessToken)}`,
       });
     } catch (error) {
       await failOrderPayment(orderId, error instanceof Error ? error.message : 'Payment initialization failed.');
@@ -292,6 +312,7 @@ checkoutRouter.post(
         status: intent.status,
         redirectUrl: intent.redirectUrl ?? null,
         clientSecret: intent.clientSecret ?? null,
+        accessToken,
         isMock: intent.isMock,
       },
     });
@@ -460,17 +481,13 @@ checkoutRouter.get(
     if (!row) throw notFound('Order not found.');
 
     const email = typeof req.query.email === 'string' ? normalizeEmail(req.query.email) : '';
+    const accessToken = typeof req.query.access_token === 'string' ? req.query.access_token : undefined;
+    const tokenAuthorized = hasOrderAccess(row, accessToken);
+    if (!tokenAuthorized) throw notFound('Order not found.');
     if (email && email !== row.email) throw notFound('Order not found.');
 
     const items = await db('order_items').where({ order_id: row.id }).select('*');
-    const order = serializeOrder(row, items);
-
-    // Redact contact details unless the email matched.
-    if (!email) {
-      order.email = order.email.replace(/^(.).*(@.*)$/, '$1•••$2');
-      order.phone = null;
-    }
-    res.json({ order });
+    res.json({ order: serializeOrder(row, items) });
   }),
 );
 
@@ -479,9 +496,15 @@ checkoutRouter.post(
   '/payment/fail',
   checkoutLimiter,
   asyncHandler(async (req, res) => {
-    const body = z.object({ reference: z.string().min(1).max(200), reason: z.string().max(500).optional() }).parse(req.body);
+    const body = z.object({
+      reference: z.string().min(1).max(200),
+      accessToken: z.string().min(20).max(200),
+      reason: z.string().max(500).optional(),
+    }).parse(req.body);
     const order = await db('orders').where({ payment_reference: body.reference }).first();
-    if (order) await failOrderPayment(order.id, body.reason ?? 'Payment was not completed.');
+    if (order && hasOrderAccess(order, body.accessToken)) {
+      await failOrderPayment(order.id, body.reason ?? 'Payment was not completed.');
+    }
     res.json({ ok: true });
   }),
 );
@@ -490,11 +513,14 @@ checkoutRouter.post(
   '/payment/verify',
   checkoutLimiter,
   asyncHandler(async (req, res) => {
-    const body = z.object({ reference: z.string().min(1).max(200) }).parse(req.body);
+    const body = z.object({
+      reference: z.string().min(1).max(200),
+      accessToken: z.string().min(20).max(200),
+    }).parse(req.body);
+    const order = await db('orders').where({ payment_reference: body.reference }).first();
+    if (!order || !hasOrderAccess(order, body.accessToken)) throw notFound('Payment order not found.');
     const provider = getPaymentProvider();
     const verification = await provider.verify(body.reference);
-    const order = await db('orders').where({ payment_reference: body.reference }).first();
-    if (!order) throw notFound('Payment order not found.');
     if (
       verification.amountCents !== undefined && Number(verification.amountCents) !== Number(order.total_cents)
     ) {
