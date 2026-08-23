@@ -31,7 +31,9 @@ Built with standard, portable technologies. There are **no platform-specific dep
 
 **Commerce** — Persistent cart, server-authoritative pricing, discount codes, reserved inventory tracking, full order lifecycle, idempotent payment records, and a swappable payment provider layer.
 
-**Admin dashboard** (`/admin`) — Sales analytics, order management with status transitions, product CRUD, inventory, customers, discount codes and review moderation.
+**Admin dashboard** (`/admin`) — Sales analytics, order management with status transitions, product CRUD, inventory, customers, discount codes, review moderation, and an **Agent** operations area.
+
+**E-commerce operations agent** — The Agent area audits catalog completeness, inventory, orders, customers and support messages; records an activity log; provides an optional server-side natural-language planning interface; and maintains an owner approval queue. Money-related actions such as product price changes and discount creation are never executed directly by the model: they must be created as a pending approval and explicitly approved by an authenticated admin before execution.
 
 **Accounts** — Customer registration, email verification, password login, secure HTTP-only sessions, password reset, profile editing, saved addresses, and authenticated order history.
 
@@ -210,6 +212,10 @@ Copy `.env.example` to `.env` and edit. **Never commit `.env`** (it is git-ignor
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | — | Required when `PAYMENT_PROVIDER=stripe` |
 | `FLW_SECRET_KEY` / `FLW_SECRET_HASH` | — | Required when `PAYMENT_PROVIDER=flutterwave` |
 
+### AI operations agent
+
+The agent runs safely in audit-only mode until a server-side model is configured. To enable natural-language planning, set `AI_API_KEY` in the server environment and optionally set `AI_API_URL`, `AI_MODEL`, and `AI_PROVIDER`. Never place `AI_API_KEY` in a `VITE_` variable. The initial agent supports model-backed analysis and owner-approved price or discount actions; supplier purchasing, advertising spend, refunds, and external channel actions remain disabled until their respective integrations are explicitly connected.
+
 ### Store, email, client
 
 | Variable | Default | Notes |
@@ -366,6 +372,10 @@ Every provider is still checked against the expected order amount and currency b
 ### Email
 
 Implement `smtpDriver` in `server/src/services/email.ts` (nodemailer or a provider SDK) and set `EMAIL_DRIVER=smtp`. Templates for order confirmation, payment confirmation, shipped and delivered are already written and wired to the order lifecycle.
+
+### Agent operations
+
+Open `/admin`, authenticate, and choose **Agent**. Use **Run store audit** to inspect the current catalog, inventory, orders, customers, and support inbox. Ask the agent for growth analysis, product copy, or a customer-support plan. Any proposed price or discount action belongs in the owner approval queue and is executed only after explicit approval. The current implementation does not create a background schedule automatically; deploy-time cron, webhooks, or a worker can call the authenticated audit route after a production hosting decision is made.
 
 ### Analytics
 

@@ -15,6 +15,7 @@ import {
   requireAdmin,
 } from '../middleware/auth.js';
 import { sendEmail, orderShippedEmail, orderDeliveredEmail } from '../services/email.js';
+import { agentRouter } from './agent.js';
 
 export const adminRouter = Router();
 
@@ -93,6 +94,7 @@ adminRouter.post('/logout', (_req, res) => {
 
 // ── Everything below this line requires a valid admin session ──────────────
 adminRouter.use(requireAdmin);
+adminRouter.use('/agent', agentRouter);
 
 adminRouter.get('/me', (req, res) => {
   res.json({ admin: req.admin });

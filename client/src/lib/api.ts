@@ -241,6 +241,12 @@ export const api = {
         deleteDiscount: (id: string) =>
           request<{ ok: boolean }>(`/api/admin/discounts/${id}`, { method: 'DELETE' }),
         messages: () => request<{ messages: any[] }>('/api/admin/messages'),
+        agentOverview: () => request<any>('/api/admin/agent/overview'),
+        runAgentAudit: () => post<any>('/api/admin/agent/audit', {}),
+        agentChat: (message: string) => post<{ configured: boolean; reply: string }>('/api/admin/agent/chat', { message }),
+        createAgentApproval: (payload: Record<string, unknown>) => post<{ approval: any }>('/api/admin/agent/approvals', payload),
+        reviewAgentApproval: (id: string, decision: 'approve' | 'reject', note?: string) =>
+          post<{ approval: any }>(`/api/admin/agent/approvals/${id}/review`, { decision, note }),
       };
     }
 
@@ -447,6 +453,20 @@ export const api = {
         return Promise.resolve({ ok: true });
       },
       messages: () => Promise.resolve({ messages: [] }),
+      agentOverview: () => {
+        const s = loadState();
+        return Promise.resolve({
+          settings: { enabled: true, moneyRequiresApproval: true, approvalEmail: 'admin@lumera.test' },
+          summary: { productCount: s.products.length, activeProductCount: s.products.filter((p: any) => p.isActive).length, orderCount: s.orders.length, paidOrderCount: s.orders.filter((o: any) => ['paid', 'processing', 'shipped', 'delivered'].includes(o.status)).length, revenueCents: s.orders.reduce((n: number, o: any) => n + (o.totalCents || 0), 0), customerCount: s.customers.length, openMessageCount: 0, pendingApprovalCount: 0 },
+          opportunities: [{ id: 'dev-agent', type: 'status', severity: 'info', title: 'Agent preview mode is ready', detail: 'Connect the server-side model to enable natural-language planning. Money actions remain approval-gated.', requiresApproval: false }],
+          approvals: [],
+          activities: [],
+        });
+      },
+      runAgentAudit: () => Promise.resolve({} as any),
+      agentChat: (message: string) => Promise.resolve({ configured: false, reply: `Preview mode received: “${message}”. Configure AI_API_KEY on the server for natural-language planning.` }),
+      createAgentApproval: () => Promise.reject(new Error('Agent approvals require the real server API.')) as any,
+      reviewAgentApproval: () => Promise.reject(new Error('Agent approvals require the real server API.')) as any,
     } as any;
   })(),
 };

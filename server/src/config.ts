@@ -88,6 +88,15 @@ export const config = {
     smtpPassword: process.env.SMTP_PASSWORD ?? '',
   },
 
+  ai: {
+    /** Optional OpenAI-compatible model adapter; secret stays server-side. */
+    provider: process.env.AI_PROVIDER ?? 'openai-compatible',
+    apiKey: process.env.AI_API_KEY ?? '',
+    baseUrl: process.env.AI_API_URL ?? 'https://api.openai.com/v1',
+    model: process.env.AI_MODEL ?? 'gpt-4o-mini',
+    auditIntervalMinutes: Number(process.env.AGENT_AUDIT_INTERVAL_MINUTES ?? 1440),
+  },
+
   store: {
     currency: process.env.CURRENCY ?? 'USD',
     /** Flat shipping rate in minor units (cents). */

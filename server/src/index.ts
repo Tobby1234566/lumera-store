@@ -15,6 +15,7 @@ import { publicRouter } from './routes/public.js';
 import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { getPaymentProvider } from './services/payments/index.js';
+import { startAgentScheduler } from './services/agent-scheduler.js';
 
 const app = express();
 
@@ -138,6 +139,7 @@ async function start() {
   await createSchema(db);
 
   app.listen(config.port, '0.0.0.0', () => {
+    startAgentScheduler();
     const provider = getPaymentProvider();
     console.log(`\n  LUMÉRA API`);
     console.log(`  ▸ listening   http://0.0.0.0:${config.port}`);

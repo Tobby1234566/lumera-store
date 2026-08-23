@@ -9,8 +9,9 @@ import { ProductsPanel } from './panels/ProductsPanel';
 import { CustomersPanel } from './panels/CustomersPanel';
 import { DiscountsPanel } from './panels/DiscountsPanel';
 import { ReviewsPanel } from './panels/ReviewsPanel';
+import { AgentPanel } from './panels/AgentPanel';
 
-type Tab = 'overview' | 'orders' | 'products' | 'customers' | 'discounts' | 'reviews';
+type Tab = 'overview' | 'orders' | 'products' | 'customers' | 'discounts' | 'reviews' | 'agent';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'customers', label: 'Customers' },
   { id: 'discounts', label: 'Discounts' },
   { id: 'reviews', label: 'Reviews' },
+  { id: 'agent', label: 'Agent' },
 ];
 
 export function AdminDashboard() {
@@ -121,6 +123,7 @@ export function AdminDashboard() {
         {tab === 'customers' && <CustomersPanel />}
         {tab === 'discounts' && <DiscountsPanel />}
         {tab === 'reviews' && <ReviewsPanel />}
+        {tab === 'agent' && <AgentPanel />}
       </main>
     </div>
   );

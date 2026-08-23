@@ -18,6 +18,7 @@ export async function createSchema(db: Knex): Promise<void> {
       t.string('password_hash').notNullable();
       t.string('role').notNullable().defaultTo('admin');
       t.timestamp('created_at').notNullable();
+      t.timestamp('updated_at').notNullable();
       t.timestamp('last_login_at').nullable();
     });
   }
@@ -296,9 +297,55 @@ export async function createSchema(db: Knex): Promise<void> {
       t.text('payload').notNullable().defaultTo('{}');
       t.timestamp('created_at').notNullable();
     });
-    }
+  }
+
+  if (!(await has('agent_settings'))) {
+    await db.schema.createTable('agent_settings', (t) => {
+      t.string('id').primary();
+      t.boolean('enabled').notNullable().defaultTo(true);
+      t.boolean('money_requires_approval').notNullable().defaultTo(true);
+      t.string('approval_email').nullable();
+      t.timestamp('created_at').notNullable();
+      t.timestamp('updated_at').notNullable();
+    });
+  }
+
+  if (!(await has('agent_activities'))) {
+    await db.schema.createTable('agent_activities', (t) => {
+      t.string('id').primary();
+      t.string('kind').notNullable().index();
+      t.string('title').notNullable();
+      t.text('detail').notNullable();
+      t.string('severity').notNullable().defaultTo('info');
+      t.text('metadata').notNullable().defaultTo('{}');
+      t.timestamp('created_at').notNullable().index();
+    });
+  }
+
+  if (!(await has('agent_approvals'))) {
+    await db.schema.createTable('agent_approvals', (t) => {
+      t.string('id').primary();
+      t.string('action_type').notNullable().index();
+      t.string('title').notNullable();
+      t.text('description').notNullable();
+      t.text('payload').notNullable().defaultTo('{}');
+      t.string('status').notNullable().defaultTo('pending').index();
+      t.string('requested_by').notNullable();
+      t.string('reviewed_by').nullable();
+      t.text('review_note').nullable();
+      t.timestamp('reviewed_at').nullable();
+      t.timestamp('executed_at').nullable();
+      t.timestamp('created_at').notNullable().index();
+    });
+  }
 
   // Additive upgrades for databases created before account/payment fields existed.
+  const adminColumns = await db('admin_users').columnInfo();
+  if (!adminColumns.updated_at) {
+    await db.schema.alterTable('admin_users', (table) => table.timestamp('updated_at').nullable());
+    await db('admin_users').update({ updated_at: new Date().toISOString() });
+  }
+
   const productColumns = await db('products').columnInfo();
   if (!productColumns.reserved_inventory) {
     await db.schema.alterTable('products', (table) => table.integer('reserved_inventory').notNullable().defaultTo(0));
@@ -332,6 +379,9 @@ export async function createSchema(db: Knex): Promise<void> {
 
 export async function dropSchema(db: Knex): Promise<void> {
   const tables = [
+    'agent_approvals',
+    'agent_activities',
+    'agent_settings',
     'analytics_events',
     'contact_messages',
     'subscribers',
