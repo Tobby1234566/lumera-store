@@ -375,7 +375,7 @@ Implement `smtpDriver` in `server/src/services/email.ts` (nodemailer or a provid
 
 ### Agent operations
 
-Open `/admin`, authenticate, and choose **Agent**. Use **Run store audit** to inspect the current catalog, inventory, orders, customers, and support inbox. Ask the agent for growth analysis, product copy, or a customer-support plan. Any proposed price or discount action belongs in the owner approval queue and is executed only after explicit approval. The current implementation does not create a background schedule automatically; deploy-time cron, webhooks, or a worker can call the authenticated audit route after a production hosting decision is made.
+Open `/admin`, authenticate, and choose **Agent**. Use **Run store audit** to inspect the current catalog, inventory, orders, customers, and support inbox. Ask the agent for growth analysis, product copy, or a customer-support plan. Any proposed price or discount action belongs in the owner approval queue and is executed only after explicit approval. The server starts a low-frequency audit scheduler using `AGENT_AUDIT_INTERVAL_MINUTES` (daily by default). It records health findings only and never executes money-related actions. For higher-frequency or event-driven workflows, add deploy-time webhooks or a worker after choosing the production hosting model.
 
 ### Analytics
 

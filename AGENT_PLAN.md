@@ -37,7 +37,7 @@ The agent can inspect store data, identify opportunities, draft content, classif
 
 - Shopify sync is not used because this repository currently owns checkout and payment orchestration. A Shopify adapter can be added later if the owner chooses to migrate.
 - Telegram, Gmail, Google Sheets, ad platforms, and supplier APIs require explicit account connection and credentials before enabling them.
-- Production recurring execution should use the deployment host’s cron/worker or an event webhook; the initial implementation exposes the audit endpoint and does not silently create an unconfigured background process.
+- The server starts a low-frequency audit scheduler using `AGENT_AUDIT_INTERVAL_MINUTES` (daily by default). Higher-frequency or event-driven execution should use a deployment webhook or worker after a production hosting decision.
 
 ## Verification notes
 
