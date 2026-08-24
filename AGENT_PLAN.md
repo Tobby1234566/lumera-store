@@ -50,3 +50,7 @@ The Agent panel chat was tested with no AI_API_KEY configured. It returned a cle
 Approval-gate verification: a local price-change request was created as `pending` with product price unchanged at 2400 cents. After an explicit approval request, the approval became `approved`, an execution timestamp and reviewer were stored, and the product price changed to 2500 cents. This test used only seeded local data with mock payments and no live transaction.
 
 Live overview verification after seeding: the agent reported 7 products, 8 orders, 6 paid/fulfilled orders, 8 customers, $506.95 in recorded mock revenue, one pending order opportunity, and three activity entries. An unauthenticated request to `/api/admin/agent/overview` correctly returned HTTP 401.
+
+## OmniRoute Render failure diagnosis
+
+The Render deployment exited with status 128 before application logs. The published `diegosouzapw/omniroute:latest` amd64 image metadata currently reports `Entrypoint=["/tmp/check-permissions.sh"]`, `Cmd=["node","dev/run-standalone.mjs"]`, `WorkingDir=/app`, user `node`, and exposed port `20128`. The official source Dockerfile for the selected release copies `scripts/check-permissions.sh` to `/app/check-permissions.sh` and declares `/app/check-permissions.sh` as the entrypoint. The published image’s `/tmp` entrypoint is therefore inconsistent with the source Dockerfile and is the likely cause of the silent Render startup exit. A small wrapper image that clears the inherited entrypoint and runs `node dev/run-standalone.mjs` is the planned fix.
