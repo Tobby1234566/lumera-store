@@ -54,3 +54,11 @@ Live overview verification after seeding: the agent reported 7 products, 8 order
 ## OmniRoute Render failure diagnosis
 
 The Render deployment exited with status 128 before application logs. The published `diegosouzapw/omniroute:latest` amd64 image metadata currently reports `Entrypoint=["/tmp/check-permissions.sh"]`, `Cmd=["node","dev/run-standalone.mjs"]`, `WorkingDir=/app`, user `node`, and exposed port `20128`. The official source Dockerfile for the selected release copies `scripts/check-permissions.sh` to `/app/check-permissions.sh` and declares `/app/check-permissions.sh` as the entrypoint. The published image’s `/tmp` entrypoint is therefore inconsistent with the source Dockerfile and is the likely cause of the silent Render startup exit. A small wrapper image that clears the inherited entrypoint and runs `node dev/run-standalone.mjs` is the planned fix.
+
+## Live OmniRoute deployment
+
+The user reports the corrected `omniroute-gateway` Render service is live. The public URL shown in their Render dashboard is `https://omniroute-kxwb.onrender.com`. A direct check opened the URL and initially returned Render’s `Application loading` page, consistent with the free instance waking from sleep; no provider configuration was attempted yet.
+
+## Port behavior confirmation
+
+Render web services expect the application to bind on `0.0.0.0`, with default public port `10000`; Render recommends using the `PORT` environment variable. OmniRoute’s own environment reference defines `PORT` as the primary port for both Dashboard UI and API in single-port mode, while `API_PORT` is optional for a separate proxy API port. The wrapper should therefore set only `HOSTNAME=0.0.0.0` and `PORT=10000` and avoid forcing `DASHBOARD_PORT` and `API_PORT` to the same port, which could create an unnecessary conflict.
