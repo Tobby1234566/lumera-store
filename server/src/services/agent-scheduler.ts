@@ -14,6 +14,11 @@ function enabled(value: unknown) {
  * the timer from keeping short-lived local scripts alive.
  */
 export function startAgentScheduler() {
+  if (!config.ai.autopilotEnabled) {
+    console.log('[agent] safe autopilot disabled; no scheduled store audits will run');
+    return;
+  }
+
   const minutes = config.ai.auditIntervalMinutes;
   if (!Number.isFinite(minutes) || minutes <= 0) return;
 
@@ -32,7 +37,10 @@ export function startAgentScheduler() {
     }
   };
 
+  if (config.ai.startupAudit) {
+    void run();
+  }
   const timer = setInterval(run, minutes * 60_000);
   timer.unref?.();
-  console.log(`[agent] scheduled store audits every ${minutes} minute(s); money actions remain approval-gated`);
+  console.log(`[agent] safe autopilot active: audits on startup and every ${minutes} minute(s); money actions remain approval-gated`);
 }

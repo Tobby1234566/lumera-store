@@ -95,7 +95,7 @@ export function AgentPanel() {
           <p className="text-[10px] uppercase tracking-luxe text-sand-300">LUMÉRA operations agent</p>
           <h1 className="mt-2 font-display text-3xl">Run the store with guardrails.</h1>
           <p className="mt-2 max-w-2xl text-[13px] leading-6 text-sand-200">
-            Routine analysis and store housekeeping can run automatically. Price changes, discounts, refunds, ad spend, supplier orders, and every other money-related action stay paused until you approve them.
+            Safe autopilot watches your catalog, inventory, orders, customers, and support inbox. It can create audits and recommendations automatically; price changes, discounts, refunds, ad spend, supplier orders, and every other money-related action stay paused until you approve them.
           </p>
         </div>
         <button type="button" onClick={runAudit} disabled={busy} className="shrink-0 bg-sand-50 px-4 py-3 text-[11px] uppercase tracking-wide2 text-ink transition-colors hover:bg-white disabled:opacity-60">
@@ -117,7 +117,7 @@ export function AgentPanel() {
               <h2 className="text-[12px] uppercase tracking-luxe text-ink">Opportunities and alerts</h2>
               <p className="mt-2 text-[12px] text-ink-muted">The agent’s latest read of your catalog, orders, customers, and support inbox.</p>
             </div>
-            <span className="border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] uppercase tracking-wide2 text-emerald-900">{settings.enabled ? 'Active' : 'Paused'}</span>
+            <span className="border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] uppercase tracking-wide2 text-emerald-900">{settings.enabled ? 'Safe autopilot active' : 'Paused'}</span>
           </div>
           <div className="mt-6 space-y-3">
             {opportunities.map((item: any) => (

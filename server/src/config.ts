@@ -94,7 +94,11 @@ export const config = {
     apiKey: process.env.AI_API_KEY ?? '',
     baseUrl: process.env.AI_API_URL ?? 'https://api.openai.com/v1',
     model: process.env.AI_MODEL ?? 'gpt-4o-mini',
-    auditIntervalMinutes: Number(process.env.AGENT_AUDIT_INTERVAL_MINUTES ?? 1440),
+    /** Safe autopilot is on by default: analysis only, with money actions locked. */
+    autopilotEnabled: process.env.AGENT_AUTOPILOT_ENABLED !== 'false',
+    startupAudit: process.env.AGENT_STARTUP_AUDIT !== 'false',
+    /** Keep scheduled work low-frequency and bounded; never use this for polling. */
+    auditIntervalMinutes: Math.max(15, Number(process.env.AGENT_AUDIT_INTERVAL_MINUTES ?? 1440)),
   },
 
   store: {

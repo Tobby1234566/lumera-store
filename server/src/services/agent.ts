@@ -78,6 +78,7 @@ export async function getAgentOverview() {
   return {
     settings: {
       enabled: asBool(settings.enabled),
+      operatingMode: 'safe_autopilot',
       moneyRequiresApproval: asBool(settings.money_requires_approval),
       approvalEmail: settings.approval_email ?? '',
     },
