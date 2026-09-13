@@ -136,7 +136,7 @@ export function AgentPanel() {
 
         <section className="border border-sand-300 bg-sand-50 p-6">
           <h2 className="text-[12px] uppercase tracking-luxe text-ink">Ask the agent</h2>
-          <p className="mt-2 text-[12px] leading-5 text-ink-muted">Ask for an audit, a growth idea, product copy, or a customer-support plan. The agent can recommend money actions, but cannot execute them without approval.</p>
+          <p className="mt-2 text-[12px] leading-5 text-ink-muted">Ask for an audit, a growth idea, product copy, or a customer-support plan. Free rule-based mode works without an API key; an optional model adds richer replies. Money actions still require approval.</p>
           <form onSubmit={submitChat} className="mt-5 space-y-3">
             <textarea value={chat} onChange={(event) => setChat(event.target.value)} rows={5} maxLength={4000} placeholder="Example: Which product should I promote next, and why?" className="w-full resize-y border border-sand-300 bg-white p-3 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:border-ink" />
             <button type="submit" disabled={chatBusy || !chat.trim()} className="w-full bg-ink px-4 py-3 text-[11px] uppercase tracking-wide2 text-sand-50 transition-opacity disabled:cursor-not-allowed disabled:opacity-50">

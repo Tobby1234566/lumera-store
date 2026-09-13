@@ -292,7 +292,7 @@ export async function agentChat(message: string) {
   if (!config.ai.apiKey) {
     return {
       configured: false,
-      reply: `The store agent is ready, but its language model is not configured yet. Based on the latest audit: ${overview.summary.pendingApprovalCount} money-related action(s) await approval, ${overview.summary.openMessageCount} customer message(s) are open, and ${overview.opportunities.length} opportunity/health item(s) were identified. Your request was: “${cleanMessage}”. Add AI_API_KEY on the server to enable natural-language planning.`,
+      reply: buildLocalAgentReply(cleanMessage, overview),
     };
   }
 
@@ -311,4 +311,35 @@ export async function agentChat(message: string) {
   if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}.`);
   const data = (await response.json()) as any;
   return { configured: true, reply: String(data?.choices?.[0]?.message?.content ?? 'The AI provider returned no response.') };
+}
+
+function buildLocalAgentReply(message: string, overview: Awaited<ReturnType<typeof getAgentOverview>>) {
+  const query = message.toLowerCase();
+  const { summary, opportunities } = overview;
+  const urgent = opportunities.filter((item) => item.severity === 'critical' || item.severity === 'warning');
+  const lines = [
+    'Free agent mode is active. No paid AI key is required for store monitoring.',
+    `Current snapshot: ${summary.activeProductCount}/${summary.productCount} active products, ${summary.orderCount} orders, ${summary.openMessageCount} open customer message(s), and ${summary.pendingApprovalCount} approval(s) waiting for you.`,
+  ];
+
+  if (query.includes('sales') || query.includes('grow') || query.includes('increase') || query.includes('promot')) {
+    lines.push('Priority plan: resolve urgent inventory and support issues first, then promote the best-stocked product with the clearest product page. Do not spend on ads until you have measured organic clicks and add-to-carts.');
+  } else if (query.includes('customer') || query.includes('support') || query.includes('message')) {
+    lines.push(summary.openMessageCount ? `Customer-support priority: review the ${summary.openMessageCount} open message(s) today. The agent can draft replies, but refunds or credits still require your approval.` : 'Customer-support status: no open messages were found in the current store data.');
+  } else if (query.includes('stock') || query.includes('inventory') || query.includes('product')) {
+    lines.push('Catalog and inventory priority: fix any low-stock products before promoting them, and complete missing descriptions or SEO metadata before sending traffic.');
+  } else {
+    lines.push('Recommended next step: review the alerts below in order, then run the audit again after making operational changes.');
+  }
+
+  if (urgent.length) {
+    lines.push(`Top alerts: ${urgent.slice(0, 3).map((item) => item.title).join('; ')}.`);
+  } else if (opportunities.length) {
+    lines.push(`Next opportunities: ${opportunities.slice(0, 3).map((item) => item.title).join('; ')}.`);
+  } else {
+    lines.push('The latest audit found no current catalog, inventory, order, or support alerts.');
+  }
+
+  lines.push('Money actions remain locked until you explicitly approve them in the admin approval queue.');
+  return lines.join('\n\n');
 }
