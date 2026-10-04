@@ -33,11 +33,15 @@ adminRouter.post(
   '/login',
   loginLimiter,
   asyncHandler(async (req, res) => {
-    const body = z
-      .object({ email: z.string().email().max(320), password: z.string().min(1).max(200) })
-      .parse(req.body);
+    try {
+      const body = z
+        .object({ email: z.string().email().max(320), password: z.string().min(1).max(200) })
+        .parse(req.body);
 
-    let user = await db('admin_users').where({ email: normalizeEmail(body.email) }).first();
+      console.log('[login] Attempting login for:', req.body.email);
+
+      let user = await db('admin_users').where({ email: normalizeEmail(body.email) }).first();
+      console.log('[login] User found:', !!user);
 
     // Always run a hash comparison when a hash exists so timing does not reveal account existence.
     const hash = user?.password_hash ?? null;
@@ -72,13 +76,21 @@ adminRouter.post(
       }
     }
 
-    if (!user || !ok) throw unauthorized('Incorrect email or password.');
+    if (!user || !ok) {
+      console.log('[login] Auth failed - user:', !!user, 'ok:', ok);
+      throw unauthorized('Incorrect email or password.');
+    }
 
     await db('admin_users').where({ id: user.id }).update({ last_login_at: new Date().toISOString() });
 
     const token = issueAdminToken({ sub: user.id, email: user.email, name: user.name, role: user.role });
     setSessionCookie(res, token);
+    console.log('[login] Success for:', user.email);
     res.json({ admin: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    } catch (error) {
+      console.error('[login] Error:', error);
+      throw error;
+    }
   }),
 );
 
