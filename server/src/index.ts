@@ -57,6 +57,8 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       // Allow Vercel preview/production domains
       if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+      // Allow Render internal domain
+      if (/^https:\/\/[\w-]+\.onrender\.com$/.test(origin)) return callback(null, true);
       // E2B / preview hosts.
       if (/^https:\/\/[\w-]+\.e2b\.app$/.test(origin)) return callback(null, true);
       return callback(new Error(`Origin ${origin} is not allowed by CORS`));

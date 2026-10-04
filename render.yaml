@@ -1,25 +1,20 @@
 services:
   - type: web
     name: lumera-api
-    env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    env: docker
+    buildCommand: docker build -t lumera-api .
+    startCommand: docker run -p 4000:4000 -e NODE_ENV=production -e PAYMENT_PROVIDER=mock -e EMAIL_DRIVER=console -e DB_CLIENT=pg -e JWT_SECRET=${JWT_SECRET} -e ADMIN_EMAIL=admin@lumera.test -e ADMIN_PASSWORD=lumera-admin -e SESSION_TTL_SECONDS=28800 -e DATABASE_URL=${DATABASE_URL} lumera-api
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000
+        value: 4000
       - key: PAYMENT_PROVIDER
         value: mock
       - key: EMAIL_DRIVER
         value: console
       - key: DB_CLIENT
         value: pg
-      - key: DATABASE_URL
-        fromService:
-          type: pserv
-          name: lumera-db
-          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: SESSION_TTL_SECONDS
@@ -28,16 +23,8 @@ services:
         value: admin@lumera.test
       - key: ADMIN_PASSWORD
         value: lumera-admin
-      - key: APP_URL
-        fromGateway: lumera
-      - key: CORS_ORIGINS
-        fromGateway: lumera
 
 databases:
   - type: postgres
     name: lumera-db
     plan: free
-
-gateways:
-  - name: lumera
-    domain: lumera-api.onrender.com
