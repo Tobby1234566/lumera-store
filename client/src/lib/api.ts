@@ -11,7 +11,7 @@ import type { Order, Product, Quote, Review, StoreConfig } from '../types';
  * NOTE: only VITE_-prefixed variables reach the browser bundle, and nothing
  * secret is ever placed in one.
  */
-const BASE = (import.meta.env.VITE_API_URL ?? 'https://lumera-api.onrender.com').replace(/\/$/, '');
+const BASE = (import.meta.env.VITE_API_URL ?? 'https://lumera-api1.onrender.com').replace(/\/$/, '');
 
 const IS_DEV = import.meta.env.DEV;
 // Opt-in flag for development-only mocked APIs. Set `VITE_ENABLE_DEV_MOCKS=true`
