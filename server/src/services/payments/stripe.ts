@@ -1,82 +1,133 @@
+import Stripe from 'stripe';
 import { config } from '../../config.js';
-import type { PaymentProvider } from './types.js';
+import type {
+  PaymentIntentInput,
+  PaymentProvider,
+} from './types.js';
 
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- * STRIPE DRIVER — INTEGRATION POINT (not yet wired to the live SDK)
- * ─────────────────────────────────────────────────────────────────────────────
- * This is a complete, honest scaffold rather than a fake implementation: it
- * throws clearly instead of pretending a payment succeeded.
- *
- * TO ACTIVATE STRIPE:
- *
- *   1. npm --workspace server install stripe
- *   2. Uncomment the import and client below.
- *   3. Replace the `throw` in each method with the marked implementation.
- *   4. Set in your environment (never in source control):
- *        PAYMENT_PROVIDER=stripe
- *        STRIPE_SECRET_KEY=sk_live_...
- *        STRIPE_WEBHOOK_SECRET=whsec_...
- *   5. Point a Stripe webhook at POST /api/payments/webhook and subscribe to
- *      `payment_intent.succeeded` and `checkout.session.completed`.
- *
- * SECURITY NOTES
- *   - Card data is entered directly into Stripe's hosted fields / Checkout and
- *     never touches this server. We only ever persist the payment intent id.
- *   - The webhook route mounts a raw body parser so signature verification
- *     works. Never trust a webhook you have not verified.
- *
- * import Stripe from 'stripe';
- * const stripe = new Stripe(config.payments.stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
- */
+const stripe = config.payments.stripeSecretKey
+  ? new Stripe(config.payments.stripeSecretKey)
+  : null;
 
-const NOT_IMPLEMENTED =
-  'The Stripe driver is scaffolded but not yet implemented. Install the `stripe` package and complete server/src/services/payments/stripe.ts, or set PAYMENT_PROVIDER=mock for development.';
+const NOT_CONFIGURED =
+  'Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.';
 
 export const stripeProvider: PaymentProvider = {
   name: 'stripe',
   isLive: true,
 
   isConfigured() {
-    return Boolean(config.payments.stripeSecretKey && config.payments.stripeWebhookSecret);
+    return Boolean(
+      config.payments.stripeSecretKey &&
+      config.payments.stripeWebhookSecret
+    );
   },
 
-  async createIntent(_input) {
-    // TODO(stripe): replace with a real PaymentIntent, e.g.
-    //
-    //   const intent = await stripe.paymentIntents.create({
-    //     amount: _input.amountCents,
-    //     currency: _input.currency.toLowerCase(),
-    //     receipt_email: _input.customerEmail,
-    //     automatic_payment_methods: { enabled: true },
-    //     metadata: { orderId: _input.orderId, orderNumber: _input.orderNumber },
-    //   });
-    //   return {
-    //     reference: intent.id,
-    //     status: 'requires_client_confirmation',
-    //     clientSecret: intent.client_secret!,
-    //     isMock: false,
-    //   };
-    throw new Error(NOT_IMPLEMENTED);
+  async createIntent(input: PaymentIntentInput) {
+    if (!stripe) {
+      throw new Error(NOT_CONFIGURED);
+    }
+
+    const intent = await stripe.paymentIntents.create({
+      amount: input.amountCents,
+      currency: input.currency.toLowerCase(),
+      receipt_email: input.customerEmail,
+
+      automatic_payment_methods: {
+        enabled: true,
+      },
+
+      metadata: {
+        orderId: input.orderId,
+        orderNumber: input.orderNumber,
+      },
+
+      description: `Luméra order ${input.orderNumber}`,
+    });
+
+    if (!intent.client_secret) {
+      throw new Error(
+        `Stripe PaymentIntent ${intent.id} did not return a client secret.`
+      );
+    }
+
+    return {
+      reference: intent.id,
+      status: 'requires_client_confirmation',
+      clientSecret: intent.client_secret,
+      isMock: false,
+    };
   },
 
-  async verify(_reference) {
-    // TODO(stripe): const intent = await stripe.paymentIntents.retrieve(_reference);
-    //   return { reference: _reference, paid: intent.status === 'succeeded', amountCents: intent.amount_received };
-    throw new Error(NOT_IMPLEMENTED);
+  async verify(reference: string) {
+    if (!stripe) {
+      throw new Error(NOT_CONFIGURED);
+    }
+
+    const intent = await stripe.paymentIntents.retrieve(reference);
+
+    return {
+      reference: intent.id,
+      paid: intent.status === 'succeeded',
+      amountCents: intent.amount_received || intent.amount,
+      raw: intent,
+    };
   },
 
-  async parseWebhook(_rawBody, _signature) {
-    // TODO(stripe): verify the signature before trusting anything:
-    //
-    //   const event = stripe.webhooks.constructEvent(
-    //     _rawBody, _signature!, config.payments.stripeWebhookSecret,
-    //   );
-    //   if (event.type === 'payment_intent.succeeded') {
-    //     const intent = event.data.object as Stripe.PaymentIntent;
-    //     return { reference: intent.id, paid: true };
-    //   }
-    //   return null;
-    throw new Error(NOT_IMPLEMENTED);
+  async parseWebhook(rawBody: Buffer, signature: string | undefined) {
+    if (!stripe) {
+      throw new Error(NOT_CONFIGURED);
+    }
+
+    if (!signature) {
+      throw new Error('Missing Stripe webhook signature.');
+    }
+
+    const event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      config.payments.stripeWebhookSecret
+    );
+
+    switch (event.type) {
+      case 'payment_intent.succeeded': {
+        const intent = event.data.object as Stripe.PaymentIntent;
+
+        return {
+          reference: intent.id,
+          paid: true,
+        };
+      }
+
+      case 'payment_intent.payment_failed': {
+        const intent = event.data.object as Stripe.PaymentIntent;
+
+        return {
+          reference: intent.id,
+          paid: false,
+        };
+      }
+
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+
+        if (!session.payment_intent) {
+          return null;
+        }
+
+        const reference =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent.id;
+
+        return {
+          reference,
+          paid: session.payment_status === 'paid',
+        };
+      }
+
+      default:
+        return null;
+    }
   },
 };

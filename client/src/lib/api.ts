@@ -11,7 +11,7 @@ import type { Order, Product, Quote, Review, StoreConfig } from '../types';
  * NOTE: only VITE_-prefixed variables reach the browser bundle, and nothing
  * secret is ever placed in one.
  */
-const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+const BASE = (import.meta.env.VITE_API_URL ?? 'https://lumera-api.onrender.com').replace(/\/$/, '');
 
 const IS_DEV = import.meta.env.DEV;
 // Opt-in flag for development-only mocked APIs. Set `VITE_ENABLE_DEV_MOCKS=true`
@@ -125,11 +125,12 @@ export const api = {
       items,
     }),
 
-  placeOrder: (payload: {
-    customer: Record<string, unknown>;
-    items: { slug: string; quantity: number }[];
-    discountCode?: string | null;
-  }) =>
+ placeOrder: (payload: {
+  paymentMethod: 'stripe' | 'paypal' | 'zelle' | 'visa' | 'mock';
+  customer: Record<string, unknown>;
+  items: { slug: string; quantity: number }[];
+  discountCode?: string | null;
+}) =>
     post<{
       order: Order;
       payment: { provider: string; status: string; redirectUrl: string | null; clientSecret: string | null; isMock: boolean };
@@ -254,7 +255,7 @@ export const api = {
     return {
       login: (email: string, password: string) => {
         // keep client-side login behavior
-        const ok = email === 'admin@lumera.test' && (password === 'lumera-admin' || password === 'Erotic_bastard');
+        const ok = email === 'admin@lumera.test' && password === 'lumera-admin';
         if (ok) {
           const admin = { id: 'adm', email: 'admin@lumera.test', name: 'LUMÉRA Admin', role: 'admin' };
           setDevAdmin(admin);

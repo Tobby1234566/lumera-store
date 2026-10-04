@@ -139,7 +139,7 @@ Open **http://localhost:5173**.
 - **Local dev mocks enabled:** when running the client in development (`import.meta.env.DEV`), the admin dashboard uses an in-browser mock API backed by `localStorage`. This lets you use the full admin UI without a running server (safe for local testing).
  - **Local dev mocks enabled:** when running the client in development (`import.meta.env.DEV`), the admin dashboard uses an in-browser mock API backed by `localStorage`. This lets you use the full admin UI without a running server (safe for local testing).
  - **Opt-in mocks:** Dev mocks are now opt-in. To enable them set `VITE_ENABLE_DEV_MOCKS=true` in your client environment (e.g. `client/.env`) while running the Vite dev server. When this flag is not set the client will call the real API endpoints even in development — remove the mocks before deploying to production.
-- **Dev login:** `admin@lumera.test` / `Erotic_bastard` (the seeded password). The client mock also accepts the original `lumera-admin` password for compatibility.
+- **Dev login:** `admin@lumera.test` / `lumera-admin`. The client mock also accepts this same password.
 - **To run the real API server on Windows:** the `server` package depends on a native SQLite binding that requires the Visual Studio "Desktop development with C++" build tools. Install that workload, then run:
 
 ```powershell

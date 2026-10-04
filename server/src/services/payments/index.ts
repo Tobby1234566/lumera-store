@@ -6,28 +6,6 @@ import { paypalProvider } from './paypal.js';
 import { zelleProvider } from './zelle.js';
 import { visaProvider } from './visa.js';
 
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- * PAYMENT PROVIDER REGISTRY
- * ─────────────────────────────────────────────────────────────────────────────
- * The application is deliberately NOT locked to a single payment processor.
- * Every provider implements the same `PaymentProvider` interface, and the
- * active one is chosen at runtime via the PAYMENT_PROVIDER environment
- * variable. To add Paystack, Flutterwave, Adyen, etc:
- *
- *   1. Create ./paystack.ts implementing `PaymentProvider`.
- *   2. Register it in the map below.
- *   3. Set PAYMENT_PROVIDER=paystack in your environment.
- *
- * No route, controller or database code needs to change.
- *
- * AVAILABLE PROVIDERS:
- *   - mock: Development-only, all payments succeed instantly
- *   - stripe: Stripe Payment Intents API (production ready)
- *   - paypal: PayPal Commerce Platform (production ready)
- *   - zelle: Bank transfer integration (mock in dev, requires bank API in prod)
- *   - visa: Visa Direct card push payments (production ready)
- */
 const providers: Record<string, PaymentProvider> = {
   mock: mockProvider,
   stripe: stripeProvider,
@@ -36,14 +14,43 @@ const providers: Record<string, PaymentProvider> = {
   visa: visaProvider,
 };
 
+/**
+ * Returns the provider configured as the server default.
+ *
+ * PAYMENT_PROVIDER is still useful as the development/default provider,
+ * but checkout can now explicitly select another registered provider.
+ */
 export function getPaymentProvider(): PaymentProvider {
-  const provider = providers[config.payments.provider];
+  return getPaymentProviderByName(config.payments.provider);
+}
+
+/**
+ * Returns a specific payment provider selected by checkout.
+ */
+export function getPaymentProviderByName(name: string): PaymentProvider {
+  const normalized = name.trim().toLowerCase();
+
+  const provider = providers[normalized];
+
   if (!provider) {
     throw new Error(
-      `Unknown PAYMENT_PROVIDER "${config.payments.provider}". Available: ${Object.keys(providers).join(', ')}`,
+      `Unknown payment provider "${name}". Available: ${Object.keys(providers).join(', ')}`,
     );
   }
+
   return provider;
+}
+
+/**
+ * Returns the providers that can currently be shown to customers.
+ *
+ * A provider is only exposed when it is configured. Mock is intentionally
+ * excluded from customer-facing payment methods.
+ */
+export function getAvailablePaymentProviders(): string[] {
+  return Object.entries(providers)
+    .filter(([name, provider]) => name !== 'mock' && provider.isConfigured())
+    .map(([name]) => name);
 }
 
 export * from './types.js';

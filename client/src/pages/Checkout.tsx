@@ -42,6 +42,9 @@ const COUNTRIES = [
   'Ghana', 'United Arab Emirates', 'Singapore', 'New Zealand',
 ];
 
+type PaymentMethod = 'stripe' | 'paypal' | 'zelle' | 'visa' | 'mock';
+
+
 export function Checkout() {
   const cart = useCart();
   const navigate = useNavigate();
@@ -52,6 +55,8 @@ export function Checkout() {
   const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>('mock');
 
   useSeo({
     title: 'Checkout | LUMÉRA',
@@ -120,6 +125,7 @@ export function Checkout() {
 
     try {
       const result = await api.placeOrder({
+        paymentMethod,
         customer: {
           fullName: form.fullName.trim(),
           email: form.email.trim(),
@@ -207,10 +213,7 @@ export function Checkout() {
       {/* Honest disclosure when the mock driver is active. */}
       {storeConfig?.payment.isMock && (
         <Notice tone="warn" className="mt-8">
-          <strong className="font-medium">Development mode — simulated payment.</strong> This store is
-          running the mock payment driver. No card details are collected and no real payment is taken.
-          Orders placed here are test records only. Connect a real payment provider before accepting
-          live orders.
+          <strong className="font-medium">Development mode — simulated payment.</strong> 
         </Notice>
       )}
 
@@ -371,25 +374,47 @@ export function Checkout() {
               Payment
             </h2>
 
-            <div className="mt-5 border border-sand-300 bg-sand-100 p-6">
-              {storeConfig?.payment.isMock ? (
-                <>
-                  <p className="text-[14.5px] leading-relaxed text-ink-soft">
-                    Simulated checkout is active. Placing this order creates a real order record in
-                    the database with a simulated payment — no card is charged and no card details
-                    are requested.
-                  </p>
-                  <p className="mt-3 text-[12.5px] leading-relaxed text-ink-faint">
-                    When a live provider is connected, its secure card fields render in this panel.
-                    Card data goes directly to the provider and never touches the LUMÉRA server.
-                  </p>
-                </>
-              ) : (
-                <p className="text-[14.5px] leading-relaxed text-ink-soft">
-                  You will be taken to our payment provider ({storeConfig?.payment.provider}) to
-                  complete payment securely. LUMÉRA never sees or stores your card details.
-                </p>
-              )}
+            <div className="mt-5 space-y-4">
+              {(['stripe', 'paypal', 'zelle', 'visa'] as PaymentMethod[]).map((method) => (
+                <label
+                  key={method}
+                  className={`flex cursor-pointer items-center gap-4 border p-4 transition ${paymentMethod === method
+                      ? 'border-ink bg-sand-100'
+                      : 'border-sand-300 bg-white'
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value={method}
+                    checked={paymentMethod === method}
+                    onChange={() => setPaymentMethod(method)}
+                    className="h-4 w-4"
+                  />
+
+                  <div>
+                    <p className="text-[14px] font-medium text-ink">
+                      {method === 'stripe'
+                        ? 'Credit / Debit Card'
+                        : method === 'paypal'
+                          ? 'PayPal'
+                          : method === 'zelle'
+                            ? 'Zelle'
+                            : 'Visa'}
+                    </p>
+
+                    <p className="mt-1 text-[12px] text-ink-muted">
+                      {method === 'stripe'
+                        ? 'Pay securely with your card.'
+                        : method === 'paypal'
+                          ? 'Pay using your PayPal account.'
+                          : method === 'zelle'
+                            ? 'Pay using Zelle.'
+                            : 'Pay with Visa.'}
+                    </p>
+                  </div>
+                </label>
+              ))}
             </div>
           </section>
 

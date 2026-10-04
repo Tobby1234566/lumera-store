@@ -6,7 +6,9 @@ import { db } from '../db/knex.js';
 import { config } from '../config.js';
 import { asyncHandler, badRequest, notFound } from '../lib/http.js';
 import { priceCart, validateDiscountCode } from '../services/pricing.js';
-import { getPaymentProvider } from '../services/payments/index.js';
+import {
+  getPaymentProviderByName,
+} from '../services/payments/index.js';
 import { id, orderNumber } from '../lib/ids.js';
 import { serializeOrder } from '../lib/serialize.js';
 import { sanitizeText, normalizeEmail } from '../lib/sanitize.js';
@@ -101,12 +103,15 @@ checkoutRouter.post(
   checkoutLimiter,
   asyncHandler(async (req, res) => {
     const body = z
-      .object({
-        customer: addressSchema,
-        items: z.array(cartLineSchema).min(1).max(50),
-        discountCode: z.string().max(40).nullable().optional(),
-      })
-      .parse(req.body);
+  .object({
+    customer: addressSchema,
+    items: z.array(cartLineSchema).min(1).max(50),
+    discountCode: z.string().max(40).nullable().optional(),
+    paymentMethod: z
+      .enum(['stripe', 'paypal', 'zelle', 'visa', 'mock'])
+     .default(config.payments.provider)
+  })
+  .parse(req.body);
 
     // Recompute every amount from the database — never trust client totals.
     const quote = await priceCart(body.items, body.discountCode ?? null);
@@ -114,7 +119,7 @@ checkoutRouter.post(
     const c = body.customer;
     const email = normalizeEmail(c.email);
     const nowIso = new Date().toISOString();
-    const provider = getPaymentProvider();
+    const provider = getPaymentProviderByName(body.paymentMethod);
 
     if (!provider.isConfigured()) {
       throw badRequest(
@@ -266,16 +271,27 @@ export async function markOrderPaid(orderId: string, reference: string): Promise
     });
 
     const items = await trx('order_items').where({ order_id: orderId }).select('*');
-    for (const item of items) {
-      if (!item.product_id) continue;
-      await trx('products')
-        .where({ id: item.product_id })
-        .update({
-          inventory: trx.raw('GREATEST(inventory - ?, 0)', [item.quantity]),
-          units_sold: trx.raw('units_sold + ?', [item.quantity]),
-          updated_at: nowIso,
-        });
-    }
+   for (const item of items) {
+  if (!item.product_id) continue;
+
+  const product = await trx('products')
+    .where({ id: item.product_id })
+    .first('inventory', 'units_sold');
+
+  if (!product) continue;
+
+  const currentInventory = Number(product.inventory ?? 0);
+  const currentUnitsSold = Number(product.units_sold ?? 0);
+  const quantity = Number(item.quantity);
+
+  await trx('products')
+    .where({ id: item.product_id })
+    .update({
+      inventory: Math.max(currentInventory - quantity, 0),
+      units_sold: currentUnitsSold + quantity,
+      updated_at: nowIso,
+    });
+}
 
     if (order.discount_code) {
       await trx('discount_codes')
@@ -404,7 +420,7 @@ checkoutRouter.get(
  * parser so provider signatures can be verified.
  */
 export const webhookHandler = asyncHandler(async (req, res) => {
-  const provider = getPaymentProvider();
+  const provider = getPaymentProviderByName(config.payments.provider);
   const signature = req.headers['stripe-signature'] as string | undefined;
   const parsed = await provider.parseWebhook(req.body as Buffer, signature);
   if (!parsed) return res.json({ received: true });

@@ -51,7 +51,7 @@ export const config = {
   /** Seed credentials for the first admin user (used by `npm run db:seed`). */
   seedAdmin: {
     email: process.env.ADMIN_EMAIL ?? 'admin@lumera.test',
-    password: process.env.ADMIN_PASSWORD ?? 'Erotic_bastard',
+    password: process.env.ADMIN_PASSWORD ?? 'lumera-admin',
     name: process.env.ADMIN_NAME ?? 'LUMÉRA Admin',
   },
 
