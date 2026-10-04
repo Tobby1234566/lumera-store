@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
+import bcrypt from 'bcryptjs';
 import { db } from '../db/knex.js';
 import { config } from '../config.js';
 import { asyncHandler } from '../lib/http.js';
 import { id } from '../lib/ids.js';
 import { sanitizeText, normalizeEmail } from '../lib/sanitize.js';
 import { getPaymentProvider } from '../services/payments/index.js';
+import { catalog } from '../data/catalog.js';
 
 export const publicRouter = Router();
 
@@ -121,6 +123,69 @@ publicRouter.get('/robots.txt', (_req, res) => {
     ['User-agent: *', 'Allow: /', 'Disallow: /admin', 'Disallow: /checkout', 'Disallow: /cart', '', `Sitemap: ${config.appUrl}/sitemap.xml`, ''].join('\n'),
   );
 });
+
+/** Seed the database (development only). */
+publicRouter.post(
+  '/seed',
+  asyncHandler(async (_req, res) => {
+    if (config.isProduction) {
+      return res.status(403).json({ error: 'Seeding disabled in production' });
+    }
+
+    // Create admin user
+    const adminExists = await db('admin_users').where({ email: config.seedAdmin.email }).first();
+    if (!adminExists) {
+      const passwordHash = await bcrypt.hash(config.seedAdmin.password, 12);
+      await db('admin_users').insert({
+        id: id('adm'),
+        email: config.seedAdmin.email.toLowerCase(),
+        name: config.seedAdmin.name,
+        password_hash: passwordHash,
+        role: 'admin',
+        created_at: new Date().toISOString(),
+      });
+      console.log('[seed] admin created');
+    }
+
+    // Seed products
+    for (const p of catalog) {
+      const existing = await db('products').where({ slug: p.slug }).first();
+      if (!existing) {
+        await db('products').insert({
+          id: id('prd'),
+          slug: p.slug,
+          name: p.name,
+          category: p.category,
+          tagline: p.tagline,
+          short_description: p.shortDescription,
+          description: p.description,
+          price_cents: p.priceCents,
+          compare_at_price_cents: p.compareAtPriceCents ?? null,
+          size: p.size,
+          inventory: p.inventory,
+          is_active: true,
+          is_featured: !!p.isFeatured,
+          is_best_seller: !!p.isBestSeller,
+          sort_order: p.sortOrder,
+          units_sold: p.unitsSold,
+          images: JSON.stringify(p.images),
+          benefits: JSON.stringify(p.benefits),
+          key_ingredients: JSON.stringify(p.keyIngredients),
+          ingredients_list: p.ingredientsList,
+          how_to_use: p.howToUse,
+          skin_types: JSON.stringify(p.skinTypes),
+          seo_title: p.seoTitle,
+          seo_description: p.seoDescription,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+    console.log(`[seed] ${catalog.length} products seeded`);
+
+    return res.json({ ok: true, message: 'Database seeded successfully' });
+  }),
+);
 
 /** Dynamic sitemap.xml including a URL for every active product. */
 publicRouter.get(
