@@ -23,6 +23,8 @@ services:
         value: admin@lumera.test
       - key: ADMIN_PASSWORD
         value: lumera-admin
+      - key: DATABASE_URL
+        sync: false
 
 databases:
   - type: postgres
