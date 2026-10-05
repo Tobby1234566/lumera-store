@@ -38,6 +38,7 @@ async function seedAdmin() {
     password_hash: passwordHash,
     role: 'admin',
     created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   });
   console.log(`[seed] admin created: ${config.seedAdmin.email} / ${config.seedAdmin.password}`);
 }
