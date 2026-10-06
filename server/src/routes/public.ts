@@ -128,6 +128,9 @@ publicRouter.get('/robots.txt', (_req, res) => {
 publicRouter.post(
   '/seed',
   asyncHandler(async (_req, res) => {
+    if (config.isProduction) {
+      return res.status(403).json({ error: 'Seeding disabled in production' });
+    }
 
     // Create admin user
     const adminExists = await db('admin_users').where({ email: config.seedAdmin.email }).first();
