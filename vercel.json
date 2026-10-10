@@ -1,6 +1,22 @@
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://lumera-api1.onrender.com/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "buildCommand": "npm run build",
+  "outputDirectory": "server/dist",
+  "framework": null,
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "regions": ["iad1"],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/migrate",
+      "schedule": "0 2 * * *"
+    }
   ]
 }
